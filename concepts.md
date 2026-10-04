@@ -251,6 +251,12 @@ undoCompletion (user: User, item: Item)
     then
         remove that experience
 
+**Quick Add**: ActivityCapturing, Suggesting
+
+**Group Interest**: Suggesting, Wanting, Experiencing
+
+**Pick for Now**: MembershipTracking, Suggesting, Wanting, Experiencing, ActivityCapturing
+
 ## Essential Reactions
 
 **Saving an Activity to a Group**
@@ -315,5 +321,4 @@ Experiencing preserves users’ history with activities and whether they would d
 
 The two concepts remain separate because past experience and current interest are different facts, but they can be coordinated through reactions. For example, when a user marks an activity as something they have done and would repeat, OnDeck automatically marks it as wanted again so it can continue to appear in future planning.
 
-The Pick for Now feature is produced by composing these concepts rather than by introducing another concept. OnDeck begins with activities that Suggesting associates with the group, then uses Wanting to identify which of those activities are relevant to the people currently making plans. Experiencing can provide additional context about whether someone has already done an activity and whether they would repeat it. Details stored through ActivityCapturing, such as category, location, cost, or event date, can help narrow the options further.
-
+The Pick for Now feature is produced by composing these concepts rather than by introducing another concept. A user first selects which members of the group are currently making plans. OnDeck begins with the activities that Suggesting associates with that group and uses Wanting to determine how many of the selected members are interested in each activity. Experiencing provides additional context about whether selected members have already done an activity and whether they would repeat it. Details stored through ActivityCapturing, such as category, location, cost, or date, can be used as optional filters. OnDeck then resurfaces relevant saved activities, rather than choosing a plan for the group, leaving the final decision to the people making plans.
