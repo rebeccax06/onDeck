@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OnDeck</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="module" src="./app.ts"></script>
+  </head>
+  <body>
+    <main id="app" v-cloak>
+      <header class="brand">
+        <div class="brand-mark" aria-hidden="true">od.</div>
+        <div>
+          <p class="eyebrow">GOOD IDEAS, KEPT CLOSE</p>
+          <h1>OnDeck</h1>
+          <p>Keep good ideas around until you're ready to go.</p>
+        </div>
+      </header>
+      <p v-if="!authReady" role="status">Loading sign-in…</p>
+      <p v-if="authError" role="alert" class="error">{{ authError }}</p>
+      <section v-if="authReady && !authError && !user" class="empty-state">
+        <h2>Good plans start with your people.</h2>
+        <p>
+          Sign in to save ideas, share them with friends, and find your next
+          plan.
+        </p>
+        <button class="primary" @click="signIn">Sign in</button>
+        <button @click="signUp">Create account</button>
+      </section>
+      <template v-if="user">
+        <div class="account-bar">
+          <span>Signed in as <strong>{{ accountName }}</strong></span
+          ><button @click="editProfile">Edit profile</button
+          ><button @click="signOut" :disabled="busy">Sign out</button>
+        </div>
+
+        <p v-if="namesWarning" class="hint">{{ namesWarning }}</p>
+        <p role="status" aria-live="polite">
+          {{ busy ? 'Working…' : message }}
+        </p>
+        <p v-if="error" role="alert" class="error">{{ error }}</p>
+        <fieldset :disabled="busy">
+          <div class="row group-toolbar">
+            <label
+              >Your group
+              <select v-model="group" @change="run(loadGroup)">
+                <option value="">Choose a group</option>
+                <option v-for="g in groups" :key="g.group" :value="g.group">
+                  {{ g.name }}
+                </option>
+              </select></label
+            >
+            <span class="sync-status" role="status" aria-live="polite"
+              >{{ syncWarning || 'Updates automatically' }}</span
+            >
+          </div>
+          <nav aria-label="Main navigation">
+            <button @click="tab='groups'" :aria-pressed="tab==='groups'">
+              Groups
+              <span v-if="invitations.length" class="badge"
+                >{{ invitations.length }}</span
+              >
+            </button>
+            <button @click="tab='deck'" :aria-pressed="tab==='deck'">
+              On Deck
+            </button>
+            <button @click="tab='add'" :aria-pressed="tab==='add'">
+              Add activity
+            </button>
+            <button @click="tab='pick'" :aria-pressed="tab==='pick'">
+              Pick for Now
+            </button>
+          </nav>
+          <section v-if="tab==='groups'">
+            <h2>Groups & invitations</h2>
+            <form @submit.prevent="createGroup" class="row">
+              <label
+                >New group name <input v-model="groupName" required /></label
+              ><button>Create group</button>
+            </form>
+            <h3>Invitations</h3>
+            <p v-if="!invitations.length">No pending invitations.</p>
+            <article v-for="i in invitations" :key="i.invitation">
+              <strong>{{ i.name }}</strong> · invited by {{ person(i.inviter) }}
+              <button @click="invitationAction(i.invitation,true)">
+                Accept
+              </button>
+              <button @click="invitationAction(i.invitation,false)">
+                Decline
+              </button>
+            </article>
+            <template v-if="group">
+              <h3>{{ currentGroup?.name }}</h3>
+              <p>Members: {{ members.map(person).join(', ') }}</p>
+              <form @submit.prevent="invite" class="row">
+                <label
+                  >Invite friend by email
+                  <input
+                    v-model="invitee"
+                    type="email"
+                    placeholder="friend@example.com"
+                    required /></label
+                ><button>Invite</button>
+              </form>
+              <p class="hint">
+                Your friend needs an OnDeck account with this verified email
+                first. The invitation will appear in their app.
+              </p>
+              <details>
+                <summary>Leave this group</summary>
+                <p>You will need another invitation to rejoin.</p>
+                <button @click="leave">Leave group</button>
+              </details>
+            </template>
+          </section>
+          <section v-if="tab==='deck'" class="deck">
+            <!-- prettier-ignore -->
+            <h2>{{ currentGroup?.name ? currentGroup.name + ' · On Deck' : 'On Deck' }}</h2>
+            <div v-if="!group" class="empty-state">
+              <h3>A little space for your next plan.</h3>
+              <p>Create or join a group to start collecting ideas together.</p>
+              <button class="primary" @click="tab='groups'">
+                Find your people
+              </button>
+            </div>
+            <div v-else-if="!activities.length" class="empty-state">
+              <h3>Your next good idea goes here.</h3>
+              <p>
+                Save a place, an event, or something you’d love to do together.
+              </p>
+              <button class="primary" @click="tab='add'">
+                + Add your first activity
+              </button>
+            </div>
+            <activity-card
+              v-for="a in activities"
+              :key="a.suggestion"
+              :activity="a"
+              :user="user"
+              :person="person"
+              @open="open"
+              @heart="toggleHeart"
+            ></activity-card>
+          </section>
+          <section v-if="tab==='add'">
+            <h2>Add activity</h2>
+            <form v-if="!capture" @submit.prevent="startCapture">
+              <label
+                >Link or source
+                <input
+                  v-model="source"
+                  placeholder="https://…"
+                  required /></label
+              ><button class="primary">Review activity</button>
+            </form>
+            <form v-else @submit.prevent="save">
+              <p v-if="savedActivity">
+                Activity saved. Retry sharing to any remaining groups below.
+              </p>
+              <fieldset :disabled="!!savedActivity">
+                <label>Name <input v-model="fields.name" required /></label>
+                <label>Source <input v-model="fields.source" /></label>
+                <label
+                  >Description
+                  <textarea v-model="fields.description"></textarea>
+                </label>
+                <div class="row">
+                  <label>Category <input v-model="fields.category" /></label
+                  ><label>Location <input v-model="fields.location" /></label>
+                </div>
+                <div class="row">
+                  <label
+                    >Estimated cost per person
+                    <input
+                      v-model="fields.cost"
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="Unknown" /></label
+                  ><label
+                    >Currency code
+                    <input
+                      v-model="fields.currency"
+                      maxlength="3"
+                      :required="fields.cost!==''"
+                  /></label>
+                </div>
+                <label
+                  >Date and time (optional, your local time)
+                  <input v-model="fields.dateTime" type="datetime-local"
+                /></label>
+              </fieldset>
+              <p>
+                Share with one or more groups. Your heart will be turned on.
+              </p>
+              <p v-if="!groups.length">
+                Create or join a group first; your draft will stay here.
+              </p>
+              <label v-for="g in groups" :key="g.group" class="choice"
+                ><input
+                  type="checkbox"
+                  v-model="shareGroups"
+                  :value="g.group"
+                  :disabled="sharedGroups.includes(g.group)"
+                />{{ g.name }} {{ sharedGroups.includes(g.group) ? '(shared)' :
+                '' }}</label
+              >
+              <button class="primary" :disabled="!groups.length">
+                {{ savedActivity ? 'Retry sharing' : 'Save and share' }}
+              </button>
+              <button v-if="!savedActivity" type="button" @click="discard">
+                Discard draft
+              </button>
+            </form>
+            <p class="hint">
+              Drafts stay private until shared. Keep this page open while
+              editing or retrying a share.
+            </p>
+          </section>
+          <section v-if="tab==='pick'">
+            <h2>Pick for Now</h2>
+            <p v-if="!group">Choose a group first.</p>
+            <form v-else @submit.prevent="pick">
+              <h3>Who's here?</h3>
+              <label v-for="member in members" :key="member" class="choice"
+                ><input
+                  type="checkbox"
+                  v-model="participants"
+                  :value="member"
+                />{{ person(member) }}</label
+              >
+              <details>
+                <summary>Optional filters</summary>
+                <div class="row">
+                  <label>Category <input v-model="filters.category" /></label
+                  ><label>Location <input v-model="filters.location" /></label>
+                </div>
+                <div class="row">
+                  <label
+                    >Maximum cost
+                    <input
+                      v-model="filters.maxCost"
+                      type="number"
+                      min="0"
+                      step="any" /></label
+                  ><label
+                    >Currency code
+                    <input
+                      v-model="filters.currency"
+                      maxlength="3"
+                      :required="filters.maxCost!==''"
+                  /></label>
+                </div>
+                <div class="row">
+                  <label
+                    >From
+                    <input
+                      v-model="filters.from"
+                      type="datetime-local" /></label
+                  ><label
+                    >Until <input v-model="filters.until" type="datetime-local"
+                  /></label>
+                </div>
+                <p class="hint">
+                  Budget filters exclude unknown costs; date filters exclude
+                  activities without dates.
+                </p>
+              </details>
+              <button class="primary" :disabled="!participants.length">
+                Find options →
+              </button>
+            </form>
+            <p v-if="picked && !options.length">
+              No activities match. Try fewer filters or add an idea.
+            </p>
+            <ol>
+              <li v-for="a in options" :key="a.activity">
+                <button class="link" @click="open(a)">{{ a.name }}</button>
+                <p>
+                  {{ a.wantedCount }} interested · {{ a.completedCount }} have
+                  been · {{ cost(a) }}
+                </p>
+              </li>
+            </ol>
+          </section>
+          <section v-if="detail" class="detail" aria-label="Activity details">
+            <button @click="detail=null">Close details</button>
+            <h2>{{ detail.name }}</h2>
+            <p>{{ detail.description }}</p>
+            <!-- prettier-ignore -->
+            <p>{{ [detail.category, detail.location, cost(detail)].filter(Boolean).join(' · ') }}</p>
+            <p v-if="detail.dateTime">
+              {{ new Date(detail.dateTime).toLocaleString() }}
+            </p>
+            <a
+              v-if="safeLink(detail.source)"
+              :href="safeLink(detail.source)"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Open original link</a
+            >
+            <p v-else-if="detail.source">{{ detail.source }}</p>
+            <p>Suggested by {{ person(detail.suggester) }}</p>
+            <button
+              @click="update('heart')"
+              :aria-pressed="!!ownStatus?.wanted"
+            >
+              {{ ownStatus?.wanted ? '♥ Want to do' : '♡ Want to do' }}
+            </button>
+            <button v-if="!ownStatus?.completed" @click="update('complete')">
+              I've done this
+            </button>
+            <template v-else
+              ><button @click="update('undo')">Undo completion</button>
+              <label
+                >Would you do it again?
+                <select
+                  :value="ownStatus.repeatPreference"
+                  @change="update('repeat',$event.target.value)"
+                >
+                  <option value="UNKNOWN">Not sure</option>
+                  <option value="YES">Yes</option>
+                  <option value="NO">No</option>
+                </select></label
+              >
+            </template>
+            <p class="hint">
+              Your hearts and experiences apply across groups. Completing clears
+              your heart; choosing “Yes” turns it on again, and choosing “No”
+              clears it.
+            </p>
+            <ul>
+              <!-- prettier-ignore -->
+              <li v-for="m in detail.members" :key="m.user">{{ person(m.user) }}: {{ m.wanted ? '♥ interested' : 'not marked interested' }}{{ m.completed ? ' · has been · again: ' + m.repeatPreference.toLowerCase() : '' }}</li>
+            </ul>
+            <details v-if="detail.suggester===user">
+              <summary>Remove this suggestion</summary>
+              <button @click="update('withdraw')">
+                Remove from this group
+              </button>
+            </details>
+          </section>
+        </fieldset>
+      </template>
+    </main>
+    <noscript>Enable JavaScript to use OnDeck.</noscript>
+  </body>
+</html>

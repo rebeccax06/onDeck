@@ -4,25 +4,22 @@ OnDeck connects persistent friend groups, captured activities, shared suggestion
 
 ## Request identity and refusals
 
-Every frontend request uses the host's authenticated Person as user; clients cannot act as another person by supplying an arbitrary user identity. An unauthenticated request refuses UNAUTHENTICATED. 
+Every frontend request uses the host's authenticated Person as user; clients cannot act as another person by supplying an arbitrary user identity. The host verifies a Clerk session token and supplies its account ID as Person. Missing or invalid sessions return HTTP 401 UNAUTHORIZED before invoking the composition. 
 
-Group reads and changes require current membership, except creating a group, listing one's groups or invitations, and accepting or declining one's own invitation.
-Resolve an unknown group as NO_SUCH_GROUP before checking membership. A nonmember receives NOT_A_MEMBER and no group data. Private capture requests require ownership and refuse NOT_CAPTURE_OWNER. Resource lookups refuse the relevant NO_SUCH_CAPTURE, NO_SUCH_ACTIVITY, NO_SUCH_INVITATION, or NO_SUCH_SUGGESTION when missing. These checks run before effects; refused requests leave state unchanged. Concept refusals propagate.
+Group reads and changes require current membership, except creating a group, listing one's groups or invitations, and accepting or declining one's own invitation. Resolve an unknown group as NO_SUCH_GROUP before checking membership. A nonmember receives NOT_A_MEMBER and no group data. Private capture requests require ownership and refuse NOT_CAPTURE_OWNER. Resource lookups refuse the relevant NO_SUCH_CAPTURE, NO_SUCH_ACTIVITY, NO_SUCH_INVITATION, or NO_SUCH_SUGGESTION when missing. These checks run before effects; refused requests leave state unchanged. Concept refusals propagate.
 
 The [membership relation](view:OnDeck.MemberMayAccessGroup) supplies current membership to group endpoints. The [activity access relation](view:OnDeck.MemberMayAccessActivity) requires an activity suggested to the requested group. A missing association refuses ACTIVITY_NOT_IN_GROUP. Invited users cannot browse a group until they accept.
 
 ## Groups and invitations
 
-A user [lists their groups](reaction:OnDeck.ListGroups). The [group list](former:OnDeck.GroupList) uses MembershipTracking._groups, ordered by name then group identity, including an empty list when the user has no groups.
-A user [creates a named group](reaction:OnDeck.CreateGroup) through MembershipTracking.create and becomes its first member.
+A user [lists their groups](reaction:OnDeck.ListGroups). The [group list](former:OnDeck.GroupList) uses MembershipTracking._groups, ordered by name then group identity, including an empty list when the user has no groups. A user [creates a named group](reaction:OnDeck.CreateGroup) through MembershipTracking.create and becomes its first member.
 
 ```endpoints
 OnDeck.ListGroups at /groups/list
 OnDeck.CreateGroup at /groups/create
 ```
 
-A member [opens a group](reaction:OnDeck.GetGroup). The [group page](former:OnDeck.GroupPage) includes its identity, name, and members from MembershipTracking._get and _members. A member [invites a person](reaction:OnDeck.Invite) through MembershipTracking.invite and may [leave](reaction:OnDeck.LeaveGroup) through
-MembershipTracking.leave. Leaving does not erase suggestions, wants, or experiences. An empty group remains stored; existing invitations remain usable, allowing an invitee to join it later. Members have equal privileges; there is no owner role.
+A member [opens a group](reaction:OnDeck.GetGroup). The [group page](former:OnDeck.GroupPage) includes its identity, name, and members from MembershipTracking._get and _members. A member [invites a person](reaction:OnDeck.Invite) by entering their email address. The host checks group membership, resolves an exact verified email on an existing Clerk account, and passes that account ID to MembershipTracking.invite and may [leave](reaction:OnDeck.LeaveGroup) through MembershipTracking.leave. Leaving does not erase suggestions, wants, or experiences. An empty group remains stored; existing invitations remain usable, allowing an invitee to join it later. Members have equal privileges; there is no owner role.
 
 ```endpoints
 OnDeck.GetGroup at /groups/get
@@ -40,7 +37,8 @@ OnDeck.DeclineInvitation at /invitations/decline
 
 ## Quick Add
 
-A user [starts a capture](reaction:OnDeck.StartCapture) with a URL or description, calling ActivityCapturing.start and returning the capture identity immediately.
+A user [starts a capture](reaction:OnDeck.StartCapture) with a URL or description, calling ActivityCapturing.start and returning the capture identity immediately. 
+
 [Capture extraction](reaction:OnDeck.CaptureStartedProposesDetails) may call ActivityCapturing.propose with available detail fields. Extraction is a trusted internal integration, with no public endpoint. Unsupported sources or extraction failure leave the capture available for manual confirmation; extraction is never required. A late proposal for a confirmed or discarded capture has no further effects.
 
 The owner [reads a capture](reaction:OnDeck.GetCapture) through the [capture preview](former:OnDeck.CapturePreview), which joins _capture and _proposal to expose source and optional proposed details. They [confirm corrected details](reaction:OnDeck.ConfirmCapture) through ActivityCapturing.confirm with the edited detail fields, returning a saved activity, or [discard the capture](reaction:OnDeck.DiscardCapture) through ActivityCapturing.discard. Confirmation accepts manual details without a proposal. It does not share the activity or create a want until the user adds it to a group.
@@ -52,9 +50,7 @@ OnDeck.ConfirmCapture at /captures/confirm
 OnDeck.DiscardCapture at /captures/discard
 ```
 
-A member [adds a confirmed activity to a group](reaction:OnDeck.AddToGroup). The request supplies group and activity identities, verifies membership and that
-ActivityCapturing._get resolves the activity, then calls Suggesting.suggest. The UI retains the activity returned by confirmation while the user chooses groups.
-Sharing with multiple groups uses one request per group, with separate success or refusal results so a failed group does not obscure earlier successful additions.
+A member [adds a confirmed activity to a group](reaction:OnDeck.AddToGroup). The request supplies group and activity identities, verifies membership and that ActivityCapturing._get resolves the activity, then calls Suggesting.suggest. The UI retains the activity returned by confirmation while the user chooses groups. Sharing with multiple groups uses one request per group, with separate success or refusal results so a failed group does not obscure earlier successful additions.
 
 [Suggesting implies initial interest](reaction:OnDeck.SuggestionCreatesWant): after Suggesting.suggest succeeds, call Wanting.want only if Wanting._wants is false. A duplicate suggestion refuses ALREADY_SUGGESTED and does not alter interest.
 
@@ -67,8 +63,7 @@ OnDeck.WithdrawSuggestion at /activities/withdraw
 
 ## Group Interest
 
-A member [browses the group collection](reaction:OnDeck.ListActivities). The [group collection](former:OnDeck.GroupCollection) joins Suggesting._forGroup to
-ActivityCapturing._get and current group members' Wanting and Experiencing facts. It returns suggestion and activity identities, suggester, details, interested members, and completed members with repeat preferences. Sort by activity name then activity identity. A group with no suggestions returns an empty activities list. Missing wants mean false; missing experiences mean not completed, distinct from unknown repeat preference. Former members' preferences are retained but excluded from group counts and visible member lists.
+A member [browses the group collection](reaction:OnDeck.ListActivities). The [group collection](former:OnDeck.GroupCollection) joins Suggesting._forGroup to ActivityCapturing._get and current group members' Wanting and Experiencing facts. It returns suggestion and activity identities, suggester, details, interested members, and completed members with repeat preferences. Sort by activity name then activity identity. A group with no suggestions returns an empty activities list. Missing wants mean false; missing experiences mean not completed, distinct from unknown repeat preference. Former members' preferences are retained but excluded from group counts and visible member lists.
 
 A member [opens activity details](reaction:OnDeck.GetActivity) with group and activity. The [activity page](former:OnDeck.ActivityPage) shows the saved details, suggestion, and one status row for every current group member, including those with no response. Both reads enforce membership; activity details also require a suggestion in that group.
 
@@ -87,10 +82,11 @@ OnDeck.SetRepeatPreference at /activities/repeat-preference
 OnDeck.UndoCompletion at /activities/undo-completion
 ```
 
-[Completion clears a want](reaction:OnDeck.CompletionClearsWant): after a successful Experiencing.complete, call Wanting.unwant only if a want exists.
-[Repeat willingness restores interest](reaction:OnDeck.RepeatYesCreatesWant): after setting repeat preference to YES, call Wanting.want only if no want exists.
-Changing repeat preference to NO or UNKNOWN leaves current interest unchanged, as in the original reactions. Explicitly wanting a completed item is still permitted and independent of its saved repeat preference. Undoing completion removes history and leaves current interest unchanged. Withdrawal and leaving a group
-do not trigger preference changes. Coordinated effects must settle before the response is presented and be safe to resume without duplicating effects.
+[Completion clears a want](reaction:OnDeck.CompletionClearsWant): after a successful Experiencing.complete, call Wanting.unwant only if a want exists. 
+
+[Repeat willingness restores interest](reaction:OnDeck.RepeatYesCreatesWant): after setting repeat preference to YES, call Wanting.want only if no want exists. 
+
+[Declining a repeat clears interest](reaction:OnDeck.RepeatNoClearsWant): after setting repeat preference to NO, call Wanting.unwant only if a want exists. Changing repeat preference to UNKNOWN leaves current interest unchanged. Explicitly wanting a completed item is still permitted and independent of its saved repeat preference. Undoing completion removes history and leaves current interest unchanged. Withdrawal and leaving a group do not trigger preference changes. Coordinated effects must settle before the response is presented and be safe to resume without duplicating effects.
 
 ## Pick for Now
 
@@ -106,8 +102,7 @@ OnDeck.PickForNow at /pick/options
 
 ## Application read calculations
 
-These named calculations implement the access checks and read joins described above. They read concept queries without changing state. Extraction is an optional
-host-supplied integration; its failure leaves manual capture available.
+These named calculations implement the access checks and read joins described above. They read concept queries without changing state. Extraction is an optional host-supplied integration; its failure leaves manual capture available.
 
 ```computations
 groupAccessError(user: String, group: String) : String | null
@@ -139,3 +134,15 @@ extractDetails(source: String) : Json
   Invokes the optional extraction integration and validates its proposed fields.
   Returns absent proposal fields as null when unsupported, invalid, or unsuccessful.
 ```
+
+## Account display names
+
+The host provides authenticated GET /auth/people for presentation. It answers a mapping of account IDs to display names for the requester, members of groups the requester belongs to, and inviters in their pending invitations. It does not accept arbitrary account IDs or expose email addresses. The host reads names from Clerk; concepts continue to store stable Person IDs. Missing names use a short member label. Names are presentation only and cannot grant access or identify an actor.
+
+The HTTP /groups/invite request supplies the email in `invitee`. Before invoking the reaction, the host checks that the authenticated caller belongs to the group and resolves the email to a Person. Invalid emails return 400 INVALID_EMAIL; unregistered or unverified addresses return 404 FRIEND_NOT_FOUND. A provider failure returns 503 UNAVAILABLE. No invitation is created on these failures.
+
+Friends must create their OnDeck account first. Invitations appear in the app; this flow does not send email messages or invite unregistered accounts.
+
+## Browser updates
+
+The browser re-reads groups, invitations, current membership and activities every three seconds while visible, and when focus returns. It updates open details and previously submitted Pick for Now results without reloading the page. Background reads preserve drafts, filter inputs, and participant selections, removing only participants who have left. Stale reads from an earlier group, account, or action are discarded. A connection failure retains the last successful view, displays an update warning, and retries automatically. 

@@ -5,7 +5,7 @@ Each person uses the same account throughout OnDeck. Signing in identifies them;
 
 ```types
 concrete Person
-  A stable identity of an OnDeck user supplied by the host.
+  A stable Clerk account ID supplied by the host after verifying the session token.
 ```
 
 ```instances
