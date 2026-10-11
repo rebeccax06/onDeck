@@ -51,8 +51,8 @@
                 </option>
               </select></label
             >
-            <span class="sync-status" role="status" aria-live="polite"
-              >{{ syncWarning || 'Updates automatically' }}</span
+            <span v-if="syncWarning" class="sync-status" role="status" aria-live="polite"
+              >{{ syncWarning }}</span
             >
           </div>
           <nav aria-label="Main navigation">
