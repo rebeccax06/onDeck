@@ -1,4 +1,5 @@
 # OnDeck
+
 A website to help you and your friends keep track of the things you want to do
 
 [Problem Framing and Stakeholders](./problem-framing.md)
@@ -16,10 +17,15 @@ The [HTTP API reference](./docs/api.md) documents every endpoint, authentication
 Validate the design independently with `bun run check:design`. After implementation, `bun run check` also checks that the code and generated artifacts agree with the design.
 
 # Demo
-[P2: Alpha](./demo/p2-demo.mp4)
 
-# Design Notebook 
-[design notebook](https://github.com/rebeccax06/61040-assignments/blob/main/design-notebook.md)
+[P2 Alpha](https://drive.google.com/file/d/1MzA0Gtd-2lBIoQ_Ru9OA5ZyYlzV7R07Q/view?usp=sharing)
+
+# Design Notebook
+
+[Design changes](./design-changes.md) · [Completion plan](./design/completion-plan.md)
+
+# Visual Design Study
+[Visual Design Study](https://docs.google.com/presentation/d/1EJIy1UGXG7Z7uk9DXubN1bM-2p0PRY6cemwZzJnPhvw/edit?usp=sharing)
 
 ## Run the API
 
@@ -57,37 +63,29 @@ If another MongoDB container already uses port 27017, stop that container before
 
 Link extraction is optional and disabled by default. Pass an extraction callback to `assembleApplication` to provide it. Manual capture works without an extractor, and unsupported links or extraction failures leave the capture available for editing.
 
-Each `.registry.ts` module connects a class to its unchanged concept specification and refusal codes; the suffix is a naming convention. After changing implementation or composition declarations, run `bun run generate` and `bun run check` to regenerate and validate the design read-back and client types in `generated/`.
+Each `.registry.ts` module connects a class to its concept specification and refusal codes; the suffix is a naming convention. After changing implementation or composition declarations, run `bun run generate` and `bun run check` to regenerate and validate the design read-back and client types in `generated/`.
 
-## Run the Vue frontend
+## Run the app
 
-With MongoDB available, run both development servers:
+The frontend uses Vue 3 for its interface and Bun to serve and bundle the files in `web/`. There is no separate Vite project or frontend package to install.
+
+After installing dependencies and copying `.env.example` to `.env`, set `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and `CLERK_AUTHORIZED_PARTIES`. Use your frontend URL for `CLERK_AUTHORIZED_PARTIES`; the example includes both local development URLs.
 
 ```sh
 bun run dev
 ```
 
-Open http://127.0.0.1:8080. If MongoDB is already running and you do not need `db:up`, run `bun run dev:backend` and `bun run dev:frontend` in separate terminals.
-The frontend proxies `/api`, `/auth/people`, and `/health` to the backend on port 3000. `BACKEND_URL` overrides that backend address.
+This starts MongoDB, the backend at `http://127.0.0.1:3000`, and the frontend at [http://127.0.0.1:8080](http://127.0.0.1:8080). If MongoDB is already running, you can run `bun run dev:backend` and `bun run dev:frontend` in separate terminals instead.
 
-For the user journey:
+Refresh the browser after frontend code changes. Saved group updates appear automatically. Unfinished activity drafts stay in memory, so save them before refreshing.
 
-1. Sign in, create Roommates, and invite friends by email. Friends must first  create an OnDeck account and verify that email. Invitations appear in the app;
-   this does not send an email. They accept from their own accounts.
-2. Open Add activity, paste a source, review or manually enter the details, and select the groups to share with. Saving automatically turns on your heart.
-3. Sign in as another group member to browse the group's On Deck and open an activity. Toggle its heart, record that you have done it, or set whether you would go again.
-4. Open Pick for Now, select the people present, and optionally filter by category, location, numeric budget/currency, or dates. Open a ranked option to see details.
-
-Clerk handles authentication. Drafts stay in memory while this page is open; finish sharing before reloading. If sharing fails after saving, retry with the same saved activity. Link extraction remains disabled by default, so manual entry is expected. While visible, the page checks for other users' changes every three seconds and when focus returns, preserving unfinished input. Failed updates show a warning and retry automatically. These updates still need a final two-account browser walkthrough.
-
-The frontend is in `web/index.html`, `web/app.ts`, and `web/styles.css`, with authentication in `web/useAuth.ts`, API error handling in `web/api.ts`, refresh coordination in `web/live-refresh.ts`, and reusable activity cards in `web/components/ActivityCard.ts`. `web/server.ts` serves and bundles it with Bun. Vue uses its full browser build for the HTML template, without a separate Vite server. `bun run check` includes frontend TypeScript. `bun run start` runs both servers, with the backend on internal
-port 4000 and the frontend on port 8080 (or the supplied `PORT`).
+Invite friends with **Groups → Members → Copy invite link** and share the copied link yourself. No email provider setup is needed.
 
 ## Tests
 
 With MongoDB running, use `bun test` to run the concept and composition suites. Tests use `MONGODB_TEST_URL`, falling back to `MONGODB_URL` from `.env`. Each suite or test creates a unique `ondeck_test_*` database and drops it afterward; it does not clear the configured application database.
 
-The concept and composition tests cover all five concepts, including their main flows, refusal cases, query ordering and empty results, persistence, repeated transitions, and concurrent writes. Composition tests cover the core journey, reactions, ranking and filtering, and endpoint failures. Authentication HTTP tests verify that the host supplies identity. `tests/auth/Clerk.test.ts` uses local signing keys and Clerk’s real verifier to test valid sessions, missing and malformed tokens, expiry, origin restrictions, and signature tampering without calling Clerk or requiring real API keys.
+The concept and composition tests cover all six concepts, including their main flows, refusal cases, query ordering and empty results, persistence, repeated transitions, and concurrent writes. Composition tests cover the core journey, reactions, ranking and filtering, and endpoint failures. Authentication HTTP tests verify that the host supplies identity. `tests/auth/Clerk.test.ts` uses local signing keys and Clerk’s real verifier to test valid sessions, missing and malformed tokens, expiry, origin restrictions, and signature tampering without calling Clerk or requiring real API keys.
 
 Each concept has its own suite in `tests/concepts/<ConceptName>.test.ts`.
 Run one suite with, for example, `bun test tests/concepts/Wanting.test.ts`.

@@ -1,6 +1,7 @@
 import {
   createApp,
   computed,
+  nextTick,
   ref,
   onMounted,
   onUnmounted,
@@ -14,6 +15,18 @@ import {
   type Group,
   type Invitation,
 } from "./api.ts";
+import { prepareGroupPicture } from "./group-picture.ts";
+import { sortableGroups } from "./sortable-groups.ts";
+import { ActivityDetails } from "./components/ActivityDetails.ts";
+import { GroupPicker } from "./components/GroupPicker.ts";
+import { PictureEditor } from "./components/PictureEditor.ts";
+import { FormSurface } from "./components/FormSurface.ts";
+import {
+  ConfirmDialog,
+  type Confirmation,
+} from "./components/ConfirmDialog.ts";
+import { GroupCard } from "./components/GroupCard.ts";
+import { createLiveConnection } from "./live-connection.ts";
 import { ActivityCard } from "./components/ActivityCard.ts";
 import { createLiveRefresh } from "./live-refresh.ts";
 import type { OnDeckHttpContract } from "../src/http-contract.ts";
@@ -35,7 +48,16 @@ const instant = (value: string) =>
   value ? new Date(value).toISOString() : undefined;
 
 createApp({
-  components: { ActivityCard },
+  components: {
+    ActivityCard,
+    GroupCard,
+    FormSurface,
+    ConfirmDialog,
+    PictureEditor,
+    GroupPicker,
+    ActivityDetails,
+  },
+  directives: { sortableGroups },
   setup() {
     const {
       user,
@@ -54,8 +76,43 @@ createApp({
         return;
       }
       clearAccountState();
-      if (user.value) void run(refresh);
+      if (user.value)
+        void run(async () => {
+          await refresh();
+          await previewInvite();
+        });
     });
+    const pictureSource = ref("");
+    const pictureOriginal = ref("");
+    function editGroupPicture() {
+      pictureSource.value = pictureOriginal.value || groupPicture.value || "";
+    }
+    function applyGroupPicture(picture: string) {
+      pictureOriginal.value = pictureSource.value;
+      groupPicture.value = picture;
+      pictureSource.value = "";
+    }
+    function cancelPictureEditor() {
+      pictureSource.value = "";
+    }
+    const confirmation = ref<Confirmation | null>(null);
+    let resolveConfirmation: ((accepted: boolean) => void) | undefined;
+    function ask(
+      title: string,
+      description: string,
+      action: string,
+    ): Promise<boolean> {
+      if (busy.value || confirmation.value) return Promise.resolve(false);
+      confirmation.value = { title, description, action };
+      return new Promise((resolve) => {
+        resolveConfirmation = resolve;
+      });
+    }
+    function answerConfirmation(accepted: boolean) {
+      confirmation.value = null;
+      resolveConfirmation?.(accepted);
+      resolveConfirmation = undefined;
+    }
     const names = ref<Record<string, string>>({});
     const namesWarning = ref("");
     const person = (id: string) =>
@@ -84,21 +141,55 @@ createApp({
     const busy = ref(false),
       message = ref(""),
       error = ref("");
-    const tab = ref("deck"),
+    const tab = ref("groups"),
       groups = ref<Group[]>([]),
       invitations = ref<Invitation[]>([]);
     const group = ref(""),
       members = ref<string[]>([]),
       activities = ref<Activity[]>([]);
     const detail = ref<Activity | null>(null),
-      groupName = ref(""),
-      invitee = ref("");
-    const source = ref(""),
-      capture = ref(""),
+      groupName = ref("");
+    const menuOpen = ref(false),
+      newGroupOpen = ref(false),
+      manageGroup = ref(false);
+    const editingGroup = ref(""),
+      groupPicture = ref<string | null>(null),
+      pictureBusy = ref(false),
+      pictureError = ref("");
+    let groupFormReturn = false,
+      pictureVersion = 0;
+    const inviteLink = ref("");
+    let inviteLinkID = "";
+    const inviteLinks = ref<
+      Array<{ link: string; expires: number }>
+    >([]);
+    const joinToken = ref(
+      new URLSearchParams(window.location.hash.slice(1)).get("invite") ?? "",
+    );
+    const joinPreview = ref<{ name: string } | null>(null);
+    const sortingGroups = ref(false),
+      savingGroupOrder = ref(false),
+      orderStatus = ref("");
+    let previewAfterAction = false;
+    let readRetry: ReturnType<typeof setTimeout> | undefined;
+    let readAttempts = 0;
+    const capture = ref(""),
       savedActivity = ref("");
     const fields = ref(blank()),
       shareGroups = ref<string[]>([]),
       sharedGroups = ref<string[]>([]);
+    const allShareGroupsSelected = computed(
+      () =>
+        groups.value.length > 0 &&
+        groups.value.every((item) => shareGroups.value.includes(item.group)),
+    );
+    function toggleAllShareGroups() {
+      shareGroups.value = allShareGroupsSelected.value
+        ? groups.value
+            .filter((item) => sharedGroups.value.includes(item.group))
+            .map((item) => item.group)
+        : groups.value.map((item) => item.group);
+    }
     const participants = ref<string[]>([]);
     const filters = ref({
       category: "",
@@ -114,7 +205,11 @@ createApp({
     const picked = ref(false);
     let submittedPick: OnDeckHttpContract["/pick/options"]["input"] | null =
       null;
-    const syncWarning = ref("");
+    const readWarning = ref(""),
+      connectionWarning = ref("");
+    const syncWarning = computed(
+      () => readWarning.value || connectionWarning.value,
+    );
     let lastNamesAt = 0;
     let namesScope = "";
     const currentGroup = computed(() =>
@@ -139,6 +234,11 @@ createApp({
             : "Could not reach the server. Please retry.";
       } finally {
         busy.value = false;
+        if (previewAfterAction && user.value) {
+          previewAfterAction = false;
+          void run(previewInvite);
+        }
+        if (user.value) requestRefresh();
       }
     }
     async function loadGroup() {
@@ -193,13 +293,25 @@ createApp({
       await loadNames();
     }
     function clearAccountState() {
+      answerConfirmation(false);
+      pictureSource.value = "";
+      pictureOriginal.value = "";
       group.value = "";
       groups.value = [];
       invitations.value = [];
+      sortingGroups.value = false;
+      savingGroupOrder.value = false;
+      orderStatus.value = "";
+      pictureVersion++;
+      pictureBusy.value = false;
+      editingGroup.value = "";
+      groupPicture.value = null;
+      pictureError.value = "";
+      newGroupOpen.value = false;
       activities.value = [];
       lastNamesAt = 0;
       namesScope = "";
-      syncWarning.value = "";
+      readWarning.value = "";
       submittedPick = null;
       names.value = {};
       namesWarning.value = "";
@@ -208,44 +320,351 @@ createApp({
       participants.value = [];
       options.value = [];
       picked.value = false;
-      invitee.value = "";
       groupName.value = "";
       error.value = "";
       message.value = "";
       resetCapture();
+      manageGroup.value = false;
+      inviteLink.value = "";
+      inviteLinks.value = [];
+      joinPreview.value = null;
+      clearTimeout(readRetry);
+      readAttempts = 0;
+      readWarning.value = "";
+      connectionWarning.value = "";
     }
     async function signOut() {
       if (
-        capture.value &&
-        !window.confirm("Sign out and leave this unfinished draft?")
+        (capture.value || fields.value.name) &&
+        !(await ask(
+          "Sign out?",
+          "Your unfinished draft will be lost.",
+          "Sign out",
+        ))
       )
         return;
       await run(clerkSignOut);
     }
+    function beginNewGroup() {
+      pictureSource.value = "";
+      pictureOriginal.value = "";
+      pictureVersion++;
+      groupFormReturn = false;
+      editingGroup.value = "";
+      groupName.value = "";
+      groupPicture.value = null;
+      pictureError.value = "";
+      pictureBusy.value = false;
+      newGroupOpen.value = true;
+      manageGroup.value = false;
+      error.value = "";
+    }
+    function openEditGroup(id: string) {
+      if (busy.value) return;
+      const found = groups.value.find((item) => item.group === id);
+      if (!found) return;
+      pictureSource.value = "";
+      pictureOriginal.value = "";
+      pictureVersion++;
+      groupFormReturn = manageGroup.value;
+      editingGroup.value = id;
+      groupName.value = found.name;
+      groupPicture.value = found.cover;
+      pictureError.value = "";
+      pictureBusy.value = false;
+      newGroupOpen.value = true;
+      manageGroup.value = false;
+      tab.value = "groups";
+      error.value = "";
+      window.scrollTo(0, 0);
+    }
+    function cancelGroupForm() {
+      pictureSource.value = "";
+      pictureOriginal.value = "";
+      pictureVersion++;
+      pictureBusy.value = false;
+      newGroupOpen.value = false;
+      manageGroup.value = groupFormReturn;
+      editingGroup.value = "";
+      groupName.value = "";
+      groupPicture.value = null;
+      pictureError.value = "";
+    }
+    async function chooseGroupPicture(event: Event) {
+      const input = event.target as HTMLInputElement,
+        file = input.files?.[0];
+      input.value = "";
+      if (!file) return;
+      const version = ++pictureVersion;
+      pictureBusy.value = true;
+      pictureError.value = "";
+      try {
+        const picture = await prepareGroupPicture(file);
+        if (version === pictureVersion) {
+          pictureSource.value = picture;
+        }
+      } catch (reason) {
+        if (version === pictureVersion)
+          pictureError.value =
+            reason instanceof Error
+              ? reason.message
+              : "Could not open this picture.";
+      } finally {
+        if (version === pictureVersion) pictureBusy.value = false;
+      }
+    }
+    async function removeGroupPicture() {
+      if (
+        !(await ask(
+          "Delete group picture?",
+          "Save changes to apply this to the group.",
+          "Delete picture",
+        ))
+      )
+        return;
+      pictureVersion++;
+      pictureBusy.value = false;
+      pictureError.value = "";
+      groupPicture.value = null;
+      pictureOriginal.value = "";
+    }
     function createGroup() {
+      if (pictureBusy.value) return;
+      return run(
+        async () => {
+          const updating = !!editingGroup.value;
+          if (!editingGroup.value) {
+            const result = await answer(
+              client.groups.create({
+                user: user.value,
+                name: groupName.value.trim(),
+              }),
+            );
+            editingGroup.value = result.group;
+            group.value = result.group;
+            // Retain the created group even if saving its picture needs a retry.
+            await refresh();
+          }
+          if (updating || groupPicture.value !== null) {
+            await answer(
+              client.groups.update({
+                user: user.value,
+                group: editingGroup.value,
+                name: groupName.value.trim(),
+                cover: groupPicture.value,
+              }),
+            );
+          }
+          group.value = editingGroup.value;
+          await refresh();
+          cancelGroupForm();
+        },
+        editingGroup.value ? "Group updated." : "Group created.",
+      );
+    }
+    function navigate(next: string) {
+      if (newGroupOpen.value) cancelGroupForm();
+      window.scrollTo(0, 0);
+      tab.value = next;
+      menuOpen.value = false;
+      manageGroup.value = false;
+      detail.value = null;
+      if (next === "add" && !shareGroups.value.length && group.value)
+        shareGroups.value = [group.value];
+      message.value = "";
+      error.value = "";
+    }
+    function switchGroup(id: string) {
+      return run(async () => {
+        group.value = id;
+        await loadGroup();
+      });
+    }
+    function openGroup(id: string) {
+      return run(async () => {
+        group.value = id;
+        await loadGroup();
+        navigate("deck");
+      });
+    }
+    async function host<T>(path: string, input: unknown): Promise<T> {
+      const token = await getToken();
+      if (!token) throw new Error("Please sign in again.");
+      const response = await fetch(path, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(input),
+        signal: AbortSignal.timeout(15_000),
+      });
+      const result = await answer(
+        response.json() as Promise<T | { error: string }>,
+      );
+      if (!response.ok) throw new Error("Please retry.");
+      return result as T;
+    }
+    const inviteUrl = (token: string) => {
+      const url = new URL(window.location.origin);
+      url.hash = `invite=${token}`;
+      return url.href;
+    };
+    async function loadInviteLinks() {
+      inviteLinks.value = (
+        await answer(
+          client.groups.links({ user: user.value, group: group.value }),
+        )
+      ).book.links;
+    }
+    function openMembers(id: string) {
+      return run(async () => {
+        group.value = id;
+        await loadGroup();
+        await loadNames();
+        await loadInviteLinks();
+        tab.value = "groups";
+        detail.value = null;
+        manageGroup.value = true;
+        menuOpen.value = false;
+        await nextTick();
+        (
+          document.querySelector(".group-management h1") as HTMLElement | null
+        )?.focus();
+        window.scrollTo(0, 0);
+      });
+    }
+    function copyInvite() {
+      return run(async () => {
+        if (!inviteLink.value) {
+          const result = await answer(
+            client.groups["create-link"]({
+              user: user.value,
+              group: group.value,
+            }),
+          );
+          inviteLinkID = result.link;
+          inviteLink.value = inviteUrl(result.token);
+          await loadInviteLinks();
+        }
+        try {
+          await navigator.clipboard.writeText(inviteLink.value);
+        } catch {
+          throw new Error(
+            "Could not copy the link. Allow clipboard access and try again.",
+          );
+        }
+      }, "Link copied.");
+    }
+    async function revokeInvite(link: string) {
+      if (
+        !(await ask(
+          "Revoke invitation?",
+          "This invite link will no longer work.",
+          "Revoke invitation",
+        ))
+      )
+        return;
+      return run(async () => {
+        await answer(
+          client.groups["revoke-link"]({
+            user: user.value,
+            group: group.value,
+            link,
+          }),
+        );
+        inviteLink.value = "";
+        await loadInviteLinks();
+      }, "Invitation revoked.");
+    }
+    async function previewInvite() {
+      if (joinToken.value) {
+        tab.value = "groups";
+        manageGroup.value = false;
+        joinPreview.value = await host("/sharing/preview", {
+          token: joinToken.value,
+        });
+      }
+    }
+    function dismissInvite() {
+      joinToken.value = "";
+      joinPreview.value = null;
+      history.replaceState(
+        null,
+        "",
+        window.location.pathname + window.location.search,
+      );
+    }
+    function joinGroup() {
       return run(async () => {
         const result = await answer(
-          client.groups.create({
+          client.invitations["join-link"]({
             user: user.value,
-            name: groupName.value.trim(),
+            token: joinToken.value,
           }),
         );
         group.value = result.group;
-        groupName.value = "";
+        dismissInvite();
         await refresh();
-      }, "Group created.");
+        navigate("deck");
+      }, "Joined group.");
     }
-    function invite() {
-      return run(async () => {
-        await answer(
-          client.groups.invite({
-            user: user.value,
-            group: group.value,
-            invitee: invitee.value.trim(),
-          }),
-        );
-        invitee.value = "";
-      }, "Invitation sent. They can accept it from their own account.");
+    async function saveOrder(ids: string[]) {
+      if (busy.value || savingGroupOrder.value) return;
+      const previous = [...groups.value],
+        actor = user.value;
+      const byID = new Map(previous.map((group) => [group.group, group]));
+      if (
+        ids.length !== previous.length ||
+        new Set(ids).size !== ids.length ||
+        ids.some((id) => !byID.has(id))
+      ) {
+        requestRefresh();
+        return;
+      }
+      if (ids.every((id, index) => id === previous[index]?.group)) {
+        requestRefresh();
+        return;
+      }
+      live.invalidate();
+      savingGroupOrder.value = true;
+      orderStatus.value = "Saving group order.";
+      error.value = "";
+      groups.value = ids.map((id) => byID.get(id)!);
+      try {
+        await answer(client.groups.order({ user: actor, order: ids }));
+        if (actor === user.value) orderStatus.value = "Group order saved.";
+      } catch (reason) {
+        if (actor === user.value) {
+          groups.value = previous;
+          orderStatus.value = "Group order could not be saved.";
+          error.value =
+            "Could not save group order. Your previous order was restored.";
+        }
+      } finally {
+        if (actor === user.value) {
+          savingGroupOrder.value = false;
+          requestRefresh();
+        }
+      }
+    }
+    function startGroupDrag() {
+      sortingGroups.value = true;
+      live.invalidate();
+    }
+    function finishGroupDrag(ids: string[] | null) {
+      sortingGroups.value = false;
+      if (ids) void saveOrder(ids);
+      else requestRefresh();
+    }
+    function moveGroup(id: string, offset: number) {
+      const ids = groups.value.map((g) => g.group),
+        from = ids.indexOf(id),
+        to = from + offset;
+      if (from < 0 || to < 0 || to >= ids.length) return;
+      ids.splice(from, 1);
+      ids.splice(to, 0, id);
+      return saveOrder(ids);
     }
     function invitationAction(invitation: string, accept: boolean) {
       return run(async () => {
@@ -262,53 +681,67 @@ createApp({
         await refresh();
       });
     }
-    function leave() {
+    async function leave() {
+      if (
+        !(await ask(
+          `Leave “${currentGroup.value?.name}”?`,
+          "You’ll need an invitation to rejoin.",
+          "Leave group",
+        ))
+      )
+        return;
       return run(async () => {
         await answer(
           client.groups.leave({ user: user.value, group: group.value }),
         );
+        manageGroup.value = false;
+        tab.value = "groups";
         await refresh();
       }, "You left the group.");
     }
-    function startCapture() {
+    async function deleteGroup(id: string) {
+      const name =
+        groups.value.find((item) => item.group === id)?.name ?? "this group";
+      if (
+        !(await ask(
+          `Delete “${name}”?`,
+          "The group and its invitations will be deleted for everyone. This can’t be undone.",
+          "Delete group",
+        ))
+      )
+        return;
       return run(async () => {
-        if (!capture.value)
-          capture.value = (
-            await answer(
-              client.captures.start({
-                user: user.value,
-                source: source.value.trim(),
-              }),
-            )
-          ).capture;
-        const result = await answer(
-          client.captures.get({ user: user.value, capture: capture.value }),
-        );
-        const draft = result.preview.capture;
-        fields.value = {
-          ...blank(),
-          source: draft.source ?? source.value,
-          ...draft.proposal,
-          cost: draft.proposal?.cost == null ? "" : String(draft.proposal.cost),
-          dateTime: draft.proposal?.dateTime
-            ? localDate(draft.proposal.dateTime)
-            : "",
-        };
-        shareGroups.value = group.value ? [group.value] : [];
-      }, "Review the details before saving. If no details were extracted, enter them below.");
+        await answer(client.groups.delete({ user: user.value, group: id }));
+        manageGroup.value = false;
+        tab.value = "groups";
+        detail.value = null;
+        shareGroups.value = shareGroups.value.filter((group) => group !== id);
+        await refresh();
+      }, "Group deleted.");
     }
-    function discard() {
+    async function discard() {
+      if (
+        !(await ask(
+          "Discard activity?",
+          "Your unfinished activity will be lost.",
+          "Discard activity",
+        ))
+      )
+        return;
       return run(async () => {
-        await answer(
-          client.captures.discard({ user: user.value, capture: capture.value }),
-        );
+        if (capture.value)
+          await answer(
+            client.captures.discard({
+              user: user.value,
+              capture: capture.value,
+            }),
+          );
         resetCapture();
       }, "Draft discarded.");
     }
     function resetCapture() {
       capture.value = "";
       savedActivity.value = "";
-      source.value = "";
       fields.value = blank();
       sharedGroups.value = [];
       shareGroups.value = [];
@@ -317,6 +750,16 @@ createApp({
       return run(async () => {
         if (!shareGroups.value.length)
           throw new Error("Choose at least one group.");
+        if (!capture.value) {
+          capture.value = (
+            await answer(
+              client.captures.start({
+                user: user.value,
+                source: fields.value.source.trim() || fields.value.name.trim(),
+              }),
+            )
+          ).capture;
+        }
         if (!savedActivity.value) {
           const f = fields.value;
           savedActivity.value = (
@@ -352,7 +795,7 @@ createApp({
           } catch (reason) {
             if (
               !(reason instanceof Error) ||
-              reason.message !== "already suggested"
+              !(reason instanceof ApiError && reason.code === "CONFLICT")
             )
               throw reason;
           }
@@ -390,7 +833,63 @@ createApp({
         picked.value = false;
       });
     }
+    let detailTrigger: HTMLElement | null = null,
+      detailScroll = 0,
+      detailReturnName = "";
+    function closeDetails() {
+      detail.value = null;
+      void nextTick(() => {
+        window.scrollTo(0, detailScroll);
+        const target = detailTrigger?.isConnected
+          ? detailTrigger
+          : Array.from(
+              document.querySelectorAll<HTMLButtonElement>(
+                ".workspace button.link",
+              ),
+            ).find((button) => button.textContent?.trim() === detailReturnName);
+        if (target) target.focus({ preventScroll: true });
+        else {
+          const heading = document.querySelector<HTMLElement>(".workspace h1");
+          heading?.setAttribute("tabindex", "-1");
+          heading?.focus({ preventScroll: true });
+        }
+      });
+    }
+    async function deleteActivity(activity: Activity) {
+      const actor = user.value,
+        targetGroup = group.value;
+      if (activity.suggester !== actor) return;
+      if (
+        !(await ask(
+          `Delete “${activity.name}”?`,
+          "This suggestion will be removed from this group. It stays in other groups where it was shared.",
+          "Delete suggestion",
+        ))
+      )
+        return;
+      if (user.value !== actor || group.value !== targetGroup) return;
+      return run(async () => {
+        await answer(
+          client.activities.withdraw({
+            user: actor,
+            suggestion: activity.suggestion,
+          }),
+        );
+        await loadGroup();
+        await nextTick();
+        const heading = document.querySelector<HTMLElement>(".workspace h1");
+        heading?.setAttribute("tabindex", "-1");
+        heading?.focus();
+      }, "Suggestion deleted.");
+    }
     function open(activity: Activity) {
+      detailTrigger =
+        document.activeElement instanceof HTMLElement &&
+        document.activeElement.matches("button.link")
+          ? document.activeElement
+          : null;
+      detailScroll = window.scrollY;
+      detailReturnName = activity.name;
       return run(async () => {
         detail.value = (
           await answer(
@@ -401,12 +900,21 @@ createApp({
             }),
           )
         ).page.activity;
+        await nextTick();
+        window.scrollTo(0, 0);
+        (
+          document.querySelector("#activity-detail-title") as HTMLElement | null
+        )?.focus();
       });
     }
-    function update(
+    async function update(
       action: "heart" | "complete" | "undo" | "withdraw" | "repeat",
       preference: "UNKNOWN" | "YES" | "NO" = "UNKNOWN",
     ) {
+      if (action === "withdraw") {
+        if (detail.value) return deleteActivity(detail.value);
+        return;
+      }
       return run(async () => {
         if (!detail.value) return;
         const row = detail.value,
@@ -425,22 +933,20 @@ createApp({
           await answer(client.activities.complete(input));
         if (action === "undo")
           await answer(client.activities["undo-completion"](input));
-        if (action === "withdraw")
-          await answer(
-            client.activities.withdraw({
-              user: user.value,
-              suggestion: row.suggestion,
-            }),
-          );
         if (action === "repeat")
           await answer(
             client.activities["repeat-preference"]({ ...input, preference }),
           );
-        await loadGroup();
-        if (action !== "withdraw")
-          detail.value = (
-            await answer(client.activities.get(input))
-          ).page.activity;
+        const [book, page] = await Promise.all([
+          answer(
+            client.activities.list({ user: user.value, group: group.value }),
+          ),
+          answer(client.activities.get(input)),
+        ]);
+        activities.value = book.book.activities;
+        detail.value = page.page.activity;
+        options.value = [];
+        picked.value = false;
       });
     }
     function pick() {
@@ -467,7 +973,14 @@ createApp({
     // Read-only snapshots keep background updates separate from form state and writes.
     const live = createLiveRefresh(
       async () => {
-        if (!user.value || busy.value || document.hidden) return null;
+        if (
+          !user.value ||
+          busy.value ||
+          sortingGroups.value ||
+          savingGroupOrder.value ||
+          document.hidden
+        )
+          return null;
         const actor = user.value;
         const previousGroup = group.value;
         const [book, inbox] = await Promise.all([
@@ -532,6 +1045,7 @@ createApp({
         const scope = JSON.stringify([
           actor,
           selectedGroup,
+          book.book.groups,
           nextMembers,
           inbox.inbox.invitations.map((i) => i.inviter),
         ]);
@@ -557,7 +1071,16 @@ createApp({
             nameFailure = true;
           }
         }
+        const links =
+          manageGroup.value && selectedGroup
+            ? (
+                await answer(
+                  client.groups.links({ user: actor, group: selectedGroup }),
+                )
+              ).book.links
+            : null;
         return {
+          links,
           previousGroup,
           selectedGroup,
           groups: book.book.groups,
@@ -572,9 +1095,18 @@ createApp({
         };
       },
       (snapshot) => {
-        if (!snapshot) return;
+        if (!snapshot || sortingGroups.value || savingGroupOrder.value) return;
+        clearTimeout(readRetry);
+        readAttempts = 0;
         const sameGroup = snapshot.previousGroup === snapshot.selectedGroup;
         groups.value = snapshot.groups;
+        if (snapshot.links) {
+          inviteLinks.value = snapshot.links;
+          if (!snapshot.links.some((link) => link.link === inviteLinkID)) {
+            inviteLink.value = "";
+            inviteLinkID = "";
+          }
+        }
         invitations.value = snapshot.invitations;
         group.value = snapshot.selectedGroup;
         members.value = snapshot.members;
@@ -606,30 +1138,77 @@ createApp({
         if (snapshot.nameFailure)
           namesWarning.value =
             "Some names could not load. Retrying automatically.";
-        syncWarning.value = "";
+        readWarning.value = "";
       },
       (reason) => {
-        syncWarning.value =
+        clearTimeout(readRetry);
+        if (user.value)
+          readRetry = setTimeout(
+            requestRefresh,
+            Math.min(30_000, 1000 * 2 ** Math.min(readAttempts++, 5)),
+          );
+        readWarning.value =
           reason instanceof ApiError && reason.code === "UNAUTHORIZED"
             ? "Sign in again to resume updates."
             : "Updates paused — reconnecting automatically…";
       },
     );
-    watch(group, () => live.invalidate(), { flush: "sync" });
-    let refreshTimer: ReturnType<typeof setInterval> | undefined;
-    const resumeUpdates = () => {
-      if (!document.hidden) void live.refresh();
-    };
+    function requestRefresh() {
+      if (!user.value || document.hidden) return;
+      if (busy.value || sortingGroups.value || savingGroupOrder.value) return;
+      live.request();
+    }
+    const connection = createLiveConnection({
+      ticket: async () =>
+        (await host<{ ticket: string }>("/live/ticket", {})).ticket,
+      refresh: requestRefresh,
+      status: (value) => {
+        connectionWarning.value = value;
+      },
+      url: () => {
+        const url = new URL("/live", window.location.origin);
+        url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+        return url;
+      },
+    });
+    watch(user, () => {
+      connection.stop();
+      clearTimeout(readRetry);
+      if (user.value) connection.start();
+    });
+    watch(
+      group,
+      () => {
+        live.invalidate();
+        manageGroup.value = false;
+        inviteLink.value = "";
+        inviteLinks.value = [];
+      },
+      { flush: "sync" },
+    );
+    function readInviteFragment() {
+      const token =
+        new URLSearchParams(window.location.hash.slice(1)).get("invite") ?? "";
+      if (token === joinToken.value) return;
+      joinToken.value = token;
+      joinPreview.value = null;
+      if (user.value && token) {
+        if (busy.value) previewAfterAction = true;
+        else void run(previewInvite);
+      }
+    }
     onMounted(() => {
-      refreshTimer = setInterval(resumeUpdates, 3000);
-      window.addEventListener("focus", resumeUpdates);
-      document.addEventListener("visibilitychange", resumeUpdates);
+      window.addEventListener("hashchange", readInviteFragment);
+      window.addEventListener("focus", requestRefresh);
+      document.addEventListener("visibilitychange", requestRefresh);
     });
     onUnmounted(() => {
+      connection.stop();
       live.dispose();
-      clearInterval(refreshTimer);
-      window.removeEventListener("focus", resumeUpdates);
-      document.removeEventListener("visibilitychange", resumeUpdates);
+      clearTimeout(readRetry);
+      window.removeEventListener("hashchange", readInviteFragment);
+      window.removeEventListener("focus", requestRefresh);
+      document.removeEventListener("visibilitychange", requestRefresh);
     });
     function safeLink(value?: string) {
       try {
@@ -653,6 +1232,45 @@ createApp({
         .slice(0, 16);
     }
     return {
+      pictureSource,
+      editGroupPicture,
+      applyGroupPicture,
+      cancelPictureEditor,
+      confirmation,
+      answerConfirmation,
+      editingGroup,
+      groupPicture,
+      pictureBusy,
+      pictureError,
+      beginNewGroup,
+      openEditGroup,
+      cancelGroupForm,
+      chooseGroupPicture,
+      removeGroupPicture,
+      closeDetails,
+      deleteActivity,
+      switchGroup,
+      menuOpen,
+      newGroupOpen,
+      manageGroup,
+      inviteLink,
+      inviteLinks,
+      joinToken,
+      joinPreview,
+      navigate,
+      openGroup,
+      openMembers,
+      copyInvite,
+      revokeInvite,
+      deleteGroup,
+      joinGroup,
+      dismissInvite,
+      moveGroup,
+      startGroupDrag,
+      finishGroupDrag,
+      sortingGroups,
+      savingGroupOrder,
+      orderStatus,
       user,
       accountName,
       syncWarning,
@@ -675,11 +1293,11 @@ createApp({
       activities,
       detail,
       groupName,
-      invitee,
-      source,
       capture,
       savedActivity,
       fields,
+      allShareGroupsSelected,
+      toggleAllShareGroups,
       shareGroups,
       sharedGroups,
       participants,
@@ -693,10 +1311,8 @@ createApp({
       loadGroup,
       toggleHeart,
       createGroup,
-      invite,
       invitationAction,
       leave,
-      startCapture,
       discard,
       save,
       open,

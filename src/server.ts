@@ -1,7 +1,6 @@
 import { createGateway } from "@mit-sdg/sync-engine/boundary";
 import { createHttpHandler } from "@mit-sdg/sync-engine-http/handler";
 import type { assembleApplication } from "./assembly.ts";
-import { InviteEmailError, type ResolveInvitee } from "./invite-email.ts";
 import { policy } from "./http.ts";
 
 export type Authenticate = (request: Request) => string | null | Promise<string | null>;
@@ -11,7 +10,7 @@ const failure = (error: string, status: number) => Response.json({ error }, {
 });
 
 /** The host supplies the actor; the client may never choose it in JSON. */
-export function createApiHandler(application: ReturnType<typeof assembleApplication>, authenticate: Authenticate, resolveInvitee?: ResolveInvitee) {
+export function createApiHandler(application: ReturnType<typeof assembleApplication>, authenticate: Authenticate, integrations: { changed?: (users: Set<string>) => void } = {}) {
   const gateway = createGateway({ application });
   const handler = createHttpHandler({ application, gateway, policy });
   return async (request: Request): Promise<Response> => {
@@ -39,19 +38,32 @@ export function createApiHandler(application: ReturnType<typeof assembleApplicat
       const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
       if (!value || typeof value !== "object" || Array.isArray(value)) return failure("INVALID_REQUEST", 400);
       const input = { ...value } as Record<string, unknown>;
-      if (resolveInvitee && new URL(request.url).pathname === "/api/groups/invite") {
-        if (typeof input.group !== "string" || typeof input.invitee !== "string") return failure("INVALID_REQUEST", 400);
-        try { input.invitee = await resolveInvitee(user, input.group, input.invitee); }
-        catch (error) {
-          if (error instanceof InviteEmailError) return failure(error.code, error.status);
-          return failure("UNAVAILABLE", 503);
-        }
-      }
+      const path = new URL(request.url).pathname;
+      const mutation = !/\/(list|get|options|links)$/.test(path);
+      const audience = async () => {
+        const users = new Set([user!]);
+        // A person's wants and experiences carry across every group they belong to.
+        if (path === "/api/groups/order" || path.startsWith("/api/captures/")) return users;
+        for (const { group } of await application.concepts.MembershipTracking._groups({ user: user! }))
+          for (const { user: member } of await application.concepts.MembershipTracking._members({ group })) users.add(member);
+        if (path === "/api/groups/invite" && typeof input.invitee === "string") users.add(input.invitee);
+        return users;
+      };
+      const before = mutation && integrations.changed ? await audience() : new Set<string>();
       const headers = new Headers(request.headers);
       headers.delete("content-length");
       const forwarded = new Request(request.url, { method: "POST", headers, signal: request.signal,
         body: JSON.stringify({ ...input, user }) });
       const response = await handler(forwarded);
+      if (mutation && integrations.changed && response.ok) {
+        const result = await response.clone().json() as Record<string, unknown>;
+        if (!("error" in result)) {
+          try {
+            for (const member of await audience()) before.add(member);
+            integrations.changed(before);
+          } catch { /* The committed write still succeeded; reconnect/focus recovers reads. */ }
+        }
+      }
       response.headers.set("Cache-Control", "no-store");
       return response;
     } catch { return failure("INVALID_REQUEST", 400); }

@@ -3,204 +3,531 @@ import { MongoClient, type Db } from "mongodb";
 import { bearerAuthenticator, createApiHandler } from "../../src/server.ts";
 import { assembleApplication } from "../../src/assembly.ts";
 
-const client = new MongoClient(process.env.MONGODB_TEST_URL || process.env.MONGODB_URL!, { serverSelectionTimeoutMS: 5000 });
+const client = new MongoClient(
+  process.env.MONGODB_TEST_URL || process.env.MONGODB_URL!,
+  { serverSelectionTimeoutMS: 5000 },
+);
 let db: Db;
 let app: ReturnType<typeof assembleApplication>;
 beforeAll(async () => {
-  await client.connect(); db = client.db(`ondeck_test_${crypto.randomUUID().replaceAll("-", "")}`);
+  await client.connect();
+  db = client.db(`ondeck_test_${crypto.randomUUID().replaceAll("-", "")}`);
   app = assembleApplication(db);
 });
-afterAll(async () => { if (app) await app.beginDrain(); if (db) await db.dropDatabase(); await client.close(); });
+afterAll(async () => {
+  if (app) await app.beginDrain();
+  if (db) await db.dropDatabase();
+  await client.close();
+});
 
-async function call(path: string, input: Record<string, unknown>, application = app): Promise<any> {
-  const result = await application.invoker.invoke(path, input, { timeoutMs: 2500 });
+async function call(
+  path: string,
+  input: Record<string, unknown>,
+  application = app,
+): Promise<any> {
+  const result = await application.invoker.invoke(path, input, {
+    timeoutMs: 2500,
+  });
   if (!result.ok) throw new Error(JSON.stringify(result.error));
   return result.value;
 }
-async function refuses(path: string, input: Record<string, unknown>, code: string) {
+async function refuses(
+  path: string,
+  input: Record<string, unknown>,
+  code: string,
+) {
   const result = await app.invoker.invoke(path, input, { timeoutMs: 2500 });
-  expect(result).toMatchObject({ ok: false, error: { kind: "domain", value: code } });
+  expect(result).toMatchObject({
+    ok: false,
+    error: { kind: "domain", value: code },
+  });
 }
 async function save(name: string, fields: Record<string, unknown> = {}) {
-  const { capture } = await call("/captures/start", { user: "rebecca", source: name });
-  return (await call("/captures/confirm", { user: "rebecca", capture, name, ...fields })).activity as string;
+  const { capture } = await call("/captures/start", {
+    user: "rebecca",
+    source: name,
+  });
+  return (
+    await call("/captures/confirm", {
+      user: "rebecca",
+      capture,
+      name,
+      ...fields,
+    })
+  ).activity as string;
 }
 
 test("full journey: invitations, manual capture, sharing, heart, completion, repeat, and pick", async () => {
-  expect(await call("/groups/list", { user: "new" })).toEqual({ book: { groups: [] } });
-  const { group } = await call("/groups/create", { user: "rebecca", name: "Roommates" });
-  const { invitation } = await call("/groups/invite", { user: "rebecca", group, invitee: "amy" });
-  expect((await call("/invitations/list", { user: "amy" })).inbox.invitations[0]).toMatchObject({ group, invitation, name: "Roommates" });
-  await refuses("/invitations/accept", { user: "other", invitation }, "NOT_INVITED");
+  expect(await call("/groups/list", { user: "new" })).toEqual({
+    book: { groups: [] },
+  });
+  const { group } = await call("/groups/create", {
+    user: "rebecca",
+    name: "Roommates",
+  });
+  const { invitation } = await call("/groups/invite", {
+    user: "rebecca",
+    group,
+    invitee: "amy",
+  });
+  expect(
+    (await call("/invitations/list", { user: "amy" })).inbox.invitations[0],
+  ).toMatchObject({ group, invitation, name: "Roommates" });
+  await refuses(
+    "/invitations/accept",
+    { user: "other", invitation },
+    "NOT_INVITED",
+  );
   await call("/invitations/accept", { user: "amy", invitation });
-  expect((await call("/groups/get", { user: "amy", group })).page.members).toHaveLength(2);
-  const secondInvite = await call("/groups/invite", { user: "amy", group, invitee: "sarah" });
-  await call("/invitations/decline", { user: "sarah", invitation: secondInvite.invitation });
-  expect((await call("/invitations/list", { user: "sarah" })).inbox.invitations).toEqual([]);
-  const { capture } = await call("/captures/start", { user: "rebecca", source: "Coffee link" });
-  expect((await call("/captures/get", { user: "rebecca", capture })).preview.capture).toMatchObject({ capture, source: "Coffee link", proposal: null });
+  expect(
+    (await call("/groups/get", { user: "amy", group })).page.members,
+  ).toHaveLength(2);
+  const secondInvite = await call("/groups/invite", {
+    user: "amy",
+    group,
+    invitee: "sarah",
+  });
+  await call("/invitations/decline", {
+    user: "sarah",
+    invitation: secondInvite.invitation,
+  });
+  expect(
+    (await call("/invitations/list", { user: "sarah" })).inbox.invitations,
+  ).toEqual([]);
+  const { capture } = await call("/captures/start", {
+    user: "rebecca",
+    source: "Coffee link",
+  });
+  expect(
+    (await call("/captures/get", { user: "rebecca", capture })).preview.capture,
+  ).toMatchObject({ capture, source: "Coffee link", proposal: null });
   await refuses("/captures/get", { user: "amy", capture }, "NOT_CAPTURE_OWNER");
-  const { activity } = await call("/captures/confirm", { user: "rebecca", capture, name: "Coffee", cost: 6, currency: "USD", category: "Cafe", location: "Cambridge" });
-  const { suggestion } = await call("/activities/add-to-group", { user: "rebecca", group, activity });
-  expect(await app.concepts.Wanting._wants({ user: "rebecca", item: activity })).toEqual({ wanted: true });
+  const { activity } = await call("/captures/confirm", {
+    user: "rebecca",
+    capture,
+    name: "Coffee",
+    cost: 6,
+    currency: "USD",
+    category: "Cafe",
+    location: "Cambridge",
+  });
+  const { suggestion } = await call("/activities/add-to-group", {
+    user: "rebecca",
+    group,
+    activity,
+  });
+  expect(
+    await app.concepts.Wanting._wants({ user: "rebecca", item: activity }),
+  ).toEqual({ wanted: true });
   await call("/activities/want", { user: "amy", group, activity });
-  const page = (await call("/activities/get", { user: "amy", group, activity })).page.activity;
+  const page = (await call("/activities/get", { user: "amy", group, activity }))
+    .page.activity;
   expect(page.interestedMembers).toEqual(["amy", "rebecca"]);
   expect(page.members).toHaveLength(2);
   await call("/activities/unwant", { user: "amy", group, activity });
   await call("/activities/want", { user: "amy", group, activity });
   await call("/activities/complete", { user: "amy", group, activity });
-  expect(await app.concepts.Wanting._wants({ user: "amy", item: activity })).toEqual({ wanted: false });
-  await call("/activities/repeat-preference", { user: "amy", group, activity, preference: "YES" });
-  expect(await app.concepts.Wanting._wants({ user: "amy", item: activity })).toEqual({ wanted: true });
-  const picked = (await call("/pick/options", { user: "rebecca", group, participants: ["amy", "rebecca", "amy"], maxCost: 10, currency: "USD", category: " cafe ", location: "bridge" })).book.result;
+  expect(
+    await app.concepts.Wanting._wants({ user: "amy", item: activity }),
+  ).toEqual({ wanted: false });
+  await call("/activities/repeat-preference", {
+    user: "amy",
+    group,
+    activity,
+    preference: "YES",
+  });
+  expect(
+    await app.concepts.Wanting._wants({ user: "amy", item: activity }),
+  ).toEqual({ wanted: true });
+  const picked = (
+    await call("/pick/options", {
+      user: "rebecca",
+      group,
+      participants: ["amy", "rebecca", "amy"],
+      maxCost: 10,
+      currency: "USD",
+      category: " cafe ",
+      location: "bridge",
+    })
+  ).book.result;
   expect(picked.participants).toEqual(["amy", "rebecca"]);
-  expect(picked.options[0]).toMatchObject({ activity, wantedCount: 2, wantedWithoutCompletionCount: 1, completedCount: 1, repeatYesCount: 1 });
-  expect((await call("/pick/options", { user: "amy", group, participants: ["amy"], maxCost: 5, currency: "USD" })).book.result.options).toEqual([]);
-  await call("/activities/repeat-preference", { user: "amy", group, activity, preference: "NO" });
-  expect(await app.concepts.Wanting._wants({ user: "amy", item: activity })).toEqual({ wanted: false });
+  expect(picked.options[0]).toMatchObject({
+    activity,
+    wantedCount: 2,
+    wantedWithoutCompletionCount: 1,
+    completedCount: 1,
+    repeatYesCount: 1,
+  });
+  expect(
+    (
+      await call("/pick/options", {
+        user: "amy",
+        group,
+        participants: ["amy"],
+        maxCost: 5,
+        currency: "USD",
+      })
+    ).book.result.options,
+  ).toEqual([]);
+  await call("/activities/repeat-preference", {
+    user: "amy",
+    group,
+    activity,
+    preference: "NO",
+  });
+  expect(
+    await app.concepts.Wanting._wants({ user: "amy", item: activity }),
+  ).toEqual({ wanted: false });
   await call("/activities/undo-completion", { user: "amy", group, activity });
-  expect(await app.concepts.Experiencing._get({ user: "amy", item: activity })).toEqual([]);
-  await refuses("/activities/withdraw", { user: "amy", suggestion }, "NOT_SUGGESTER");
+  expect(
+    await app.concepts.Experiencing._get({ user: "amy", item: activity }),
+  ).toEqual([]);
+  await refuses(
+    "/activities/withdraw",
+    { user: "amy", suggestion },
+    "NOT_SUGGESTER",
+  );
   await call("/groups/leave", { user: "amy", group });
-  expect((await call("/activities/list", { user: "rebecca", group })).book.activities[0].members).toHaveLength(1);
+  expect(
+    (await call("/activities/list", { user: "rebecca", group })).book
+      .activities[0].members,
+  ).toHaveLength(1);
   await call("/activities/withdraw", { user: "rebecca", suggestion });
-  expect((await call("/activities/list", { user: "rebecca", group })).book.activities).toEqual([]);
-  expect(await app.concepts.Wanting._wants({ user: "rebecca", item: activity })).toEqual({ wanted: true });
-  const abandoned = await call("/captures/start", { user: "rebecca", source: "Discard" });
-  await call("/captures/discard", { user: "rebecca", capture: abandoned.capture });
-  await refuses("/captures/get", { user: "rebecca", capture: abandoned.capture }, "NO_SUCH_CAPTURE");
+  expect(
+    (await call("/activities/list", { user: "rebecca", group })).book
+      .activities,
+  ).toEqual([]);
+  expect(
+    await app.concepts.Wanting._wants({ user: "rebecca", item: activity }),
+  ).toEqual({ wanted: true });
+  const abandoned = await call("/captures/start", {
+    user: "rebecca",
+    source: "Discard",
+  });
+  await call("/captures/discard", {
+    user: "rebecca",
+    capture: abandoned.capture,
+  });
+  await refuses(
+    "/captures/get",
+    { user: "rebecca", capture: abandoned.capture },
+    "NO_SUCH_CAPTURE",
+  );
 });
 
 test("access and input failures have explicit responses and no side effects", async () => {
-  const { group } = await call("/groups/create", { user: "rebecca", name: "Private" });
+  const { group } = await call("/groups/create", {
+    user: "rebecca",
+    name: "Private",
+  });
   const activity = await save("Private activity");
-  await refuses("/groups/get", { user: "amy", group: "missing" }, "NO_SUCH_GROUP");
+  await refuses(
+    "/groups/get",
+    { user: "amy", group: "missing" },
+    "NO_SUCH_GROUP",
+  );
   await refuses("/groups/get", { user: "amy", group }, "NOT_A_MEMBER");
-  await refuses("/activities/add-to-group", { user: "amy", group, activity }, "NOT_A_MEMBER");
-  await refuses("/activities/want", { user: "rebecca", group, activity }, "ACTIVITY_NOT_IN_GROUP");
-  await refuses("/activities/get", { user: "rebecca", group, activity: "missing" }, "NO_SUCH_ACTIVITY");
-  await refuses("/activities/withdraw", { user: "rebecca", suggestion: "missing" }, "NO_SUCH_SUGGESTION");
-  await refuses("/pick/options", { user: "rebecca", group, participants: [] }, "NO_PARTICIPANTS");
-  await refuses("/pick/options", { user: "rebecca", group, participants: ["other"] }, "INVALID_PARTICIPANTS");
-  await refuses("/pick/options", { user: "rebecca", group, participants: ["rebecca"], maxCost: 2 }, "INVALID_FILTERS");
-  await refuses("/pick/options", { user: "rebecca", group, participants: ["rebecca"], from: "2026-10-10T12:00:00Z", until: "2026-10-09T12:00:00Z" }, "INVALID_FILTERS");
+  await refuses(
+    "/activities/add-to-group",
+    { user: "amy", group, activity },
+    "NOT_A_MEMBER",
+  );
+  await refuses(
+    "/activities/want",
+    { user: "rebecca", group, activity },
+    "ACTIVITY_NOT_IN_GROUP",
+  );
+  await refuses(
+    "/activities/get",
+    { user: "rebecca", group, activity: "missing" },
+    "NO_SUCH_ACTIVITY",
+  );
+  await refuses(
+    "/activities/withdraw",
+    { user: "rebecca", suggestion: "missing" },
+    "NO_SUCH_SUGGESTION",
+  );
+  await refuses(
+    "/pick/options",
+    { user: "rebecca", group, participants: [] },
+    "NO_PARTICIPANTS",
+  );
+  await refuses(
+    "/pick/options",
+    { user: "rebecca", group, participants: ["other"] },
+    "INVALID_PARTICIPANTS",
+  );
+  await refuses(
+    "/pick/options",
+    { user: "rebecca", group, participants: ["rebecca"], maxCost: 2 },
+    "INVALID_FILTERS",
+  );
+  await refuses(
+    "/pick/options",
+    {
+      user: "rebecca",
+      group,
+      participants: ["rebecca"],
+      from: "2026-10-10T12:00:00Z",
+      until: "2026-10-09T12:00:00Z",
+    },
+    "INVALID_FILTERS",
+  );
   expect(await app.concepts.Suggesting._forGroup({ group })).toEqual([]);
-  const malformed = await app.invoker.invoke("/groups/get", { user: "amy", group: 42 });
-  expect(malformed).toMatchObject({ ok: false, error: { kind: "framework", code: "INVALID_INPUT" } });
+  const malformed = await app.invoker.invoke("/groups/get", {
+    user: "amy",
+    group: 42,
+  });
+  expect(malformed).toMatchObject({
+    ok: false,
+    error: { kind: "framework", code: "INVALID_INPUT" },
+  });
 });
 
 test("Pick for Now ranks interest then novelty and applies inclusive dates and known budgets", async () => {
-  const { group } = await call("/groups/create", { user: "rebecca", name: "Options" });
-  const newest = await save("New", { cost: 0, currency: "USD", dateTime: "2026-10-10T12:00:00Z" });
-  const repeat = await save("Repeat", { cost: 10, currency: "USD", dateTime: "2026-10-10T12:00:00Z" });
+  const { group } = await call("/groups/create", {
+    user: "rebecca",
+    name: "Options",
+  });
+  const newest = await save("New", {
+    cost: 0,
+    currency: "USD",
+    dateTime: "2026-10-10T12:00:00Z",
+  });
+  const repeat = await save("Repeat", {
+    cost: 10,
+    currency: "USD",
+    dateTime: "2026-10-10T12:00:00Z",
+  });
   const unknown = await save("Unknown budget");
-  for (const activity of [repeat, unknown, newest]) await call("/activities/add-to-group", { user: "rebecca", group, activity });
-  await call("/activities/complete", { user: "rebecca", group, activity: repeat });
-  await call("/activities/repeat-preference", { user: "rebecca", group, activity: repeat, preference: "YES" });
-  const { options } = (await call("/pick/options", { user: "rebecca", group, participants: ["rebecca"], maxCost: 10, currency: "USD", from: "2026-10-10T12:00:00Z", until: "2026-10-10T12:00:00Z" })).book.result;
+  for (const activity of [repeat, unknown, newest])
+    await call("/activities/add-to-group", {
+      user: "rebecca",
+      group,
+      activity,
+    });
+  await call("/activities/complete", {
+    user: "rebecca",
+    group,
+    activity: repeat,
+  });
+  await call("/activities/repeat-preference", {
+    user: "rebecca",
+    group,
+    activity: repeat,
+    preference: "YES",
+  });
+  const { options } = (
+    await call("/pick/options", {
+      user: "rebecca",
+      group,
+      participants: ["rebecca"],
+      maxCost: 10,
+      currency: "USD",
+      from: "2026-10-10T12:00:00Z",
+      until: "2026-10-10T12:00:00Z",
+    })
+  ).book.result;
   expect(options.map((row: any) => row.activity)).toEqual([newest, repeat]);
-  expect(await app.concepts.Experiencing._get({ user: "rebecca", item: newest })).toEqual([]);
+  expect(
+    await app.concepts.Experiencing._get({ user: "rebecca", item: newest }),
+  ).toEqual([]);
 });
 
 test("optional extraction proposes details; unsupported, invalid, and failed extraction stay manual", async () => {
   const extractedApp = assembleApplication(db, async (source) => {
     if (source === "bad") throw new Error("offline");
     if (source === "invalid") return { name: " ", cost: -1, currency: "USD" };
-    return source === "supported" ? { name: "Extracted", cost: 3, currency: "USD" } : null;
+    return source === "supported"
+      ? { name: "Extracted", cost: 3, currency: "USD" }
+      : null;
   });
   for (const source of ["supported", "unsupported", "bad", "invalid"]) {
-    const { capture } = await call("/captures/start", { user: "rebecca", source }, extractedApp);
-    const proposal = await extractedApp.concepts.ActivityCapturing._proposal({ capture });
-    if (source === "supported") expect(proposal).toEqual([{ name: "Extracted", cost: 3, currency: "USD" }]);
+    const { capture } = await call(
+      "/captures/start",
+      { user: "rebecca", source },
+      extractedApp,
+    );
+    const proposal = await extractedApp.concepts.ActivityCapturing._proposal({
+      capture,
+    });
+    if (source === "supported")
+      expect(proposal).toEqual([
+        { name: "Extracted", cost: 3, currency: "USD" },
+      ]);
     else expect(proposal).toEqual([]);
   }
   await extractedApp.beginDrain();
 });
 
 test("HTTP host supplies identity and exposes public status categories", async () => {
-  const handler = createApiHandler(app, bearerAuthenticator({ "rebecca-token": "rebecca", "amy-token": "amy" }));
-  const post = (path: string, value: unknown, token?: string) => handler(new Request(`http://localhost/api${path}`, {
-    method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body: JSON.stringify(value),
-  }));
+  const handler = createApiHandler(
+    app,
+    bearerAuthenticator({ "rebecca-token": "rebecca", "amy-token": "amy" }),
+  );
+  const post = (path: string, value: unknown, token?: string) =>
+    handler(
+      new Request(`http://localhost/api${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(value),
+      }),
+    );
   const unauthenticated = await post("/groups/list", { user: "rebecca" });
   expect(unauthenticated.status).toBe(401);
-  const created = await post("/groups/create", { user: "amy", name: "Host authenticated" }, "rebecca-token");
+  const created = await post(
+    "/groups/create",
+    { user: "amy", name: "Host authenticated" },
+    "rebecca-token",
+  );
   expect(created.status).toBe(200);
-  const { group } = await created.json() as { group: string };
-  expect(await app.concepts.MembershipTracking._members({ group })).toEqual([{ user: "rebecca" }]);
-  const forbidden = await post("/groups/get", { user: "rebecca", group }, "amy-token");
+  const { group } = (await created.json()) as { group: string };
+  expect(await app.concepts.MembershipTracking._members({ group })).toEqual([
+    { user: "rebecca" },
+  ]);
+  const forbidden = await post(
+    "/groups/get",
+    { user: "rebecca", group },
+    "amy-token",
+  );
   expect(forbidden.status).toBe(403);
   expect(await forbidden.json()).toEqual({ error: "FORBIDDEN" });
-  expect((await post("/groups/get", { group: "missing" }, "amy-token")).status).toBe(404);
-  expect((await post("/groups/create", { name: " " }, "amy-token")).status).toBe(400);
-  expect((await post("/groups/get", { group: 42 }, "amy-token")).status).toBe(400);
-  expect((await post("/groups/get", { group, unexpected: true }, "rebecca-token")).status).toBe(400);
-  const oversized = await post("/captures/start", { source: "x".repeat(1_048_577) }, "rebecca-token");
+  expect(
+    (await post("/groups/get", { group: "missing" }, "amy-token")).status,
+  ).toBe(404);
+  expect(
+    (await post("/groups/create", { name: " " }, "amy-token")).status,
+  ).toBe(400);
+  expect((await post("/groups/get", { group: 42 }, "amy-token")).status).toBe(
+    400,
+  );
+  expect(
+    (await post("/groups/get", { group, unexpected: true }, "rebecca-token"))
+      .status,
+  ).toBe(400);
+  const oversized = await post(
+    "/captures/start",
+    { source: "x".repeat(1_048_577) },
+    "rebecca-token",
+  );
   expect(oversized.status).toBe(400);
   expect(created.headers.get("Cache-Control")).toBe("no-store");
 });
 
 test("Pick for Now returns at most ten options and does not equate unknown costs with free", async () => {
-  const { group } = await call("/groups/create", { user: "rebecca", name: "Ten options" });
+  const { group } = await call("/groups/create", {
+    user: "rebecca",
+    name: "Ten options",
+  });
   for (let i = 0; i < 12; i++) {
-    const activity = await save(`Option ${String(i).padStart(2, "0")}`, i === 0 ? { cost: 0, currency: "USD" } : {});
-    await call("/activities/add-to-group", { user: "rebecca", group, activity });
+    const activity = await save(
+      `Option ${String(i).padStart(2, "0")}`,
+      i === 0 ? { cost: 0, currency: "USD" } : {},
+    );
+    await call("/activities/add-to-group", {
+      user: "rebecca",
+      group,
+      activity,
+    });
   }
-  const all = (await call("/pick/options", { user: "rebecca", group, participants: ["rebecca"] })).book.result;
+  const all = (
+    await call("/pick/options", {
+      user: "rebecca",
+      group,
+      participants: ["rebecca"],
+    })
+  ).book.result;
   expect(all.options).toHaveLength(10);
   expect(all.options[0].name).toBe("Option 00");
-  const free = (await call("/pick/options", { user: "rebecca", group, participants: ["rebecca"], maxCost: 0, currency: "USD" })).book.result;
+  const free = (
+    await call("/pick/options", {
+      user: "rebecca",
+      group,
+      participants: ["rebecca"],
+      maxCost: 0,
+      currency: "USD",
+    })
+  ).book.result;
   expect(free.options).toHaveLength(1);
-  await refuses("/pick/options", { user: "rebecca", group, participants: ["rebecca"], from: "2026-02-30T12:00:00Z" }, "INVALID_FILTERS");
+  await refuses(
+    "/pick/options",
+    {
+      user: "rebecca",
+      group,
+      participants: ["rebecca"],
+      from: "2026-02-30T12:00:00Z",
+    },
+    "INVALID_FILTERS",
+  );
 });
-
-test("HTTP email invites store resolved account IDs and reject lookup failures without writes", async () => {
-  const { emailInviteResolver } = await import("../../src/invite-email.ts");
-  const { group } = await call("/groups/create", { user: "email-host", name: "Email invites" });
-  const resolve = emailInviteResolver(app.concepts.MembershipTracking, async email => email === "friend@example.com" ? "email-friend" : null);
-  const handler = createApiHandler(app, bearerAuthenticator({ token: "email-host" }), resolve);
-  const invite = (email: string) => handler(new Request("http://localhost/api/groups/invite", {
-    method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer token" },
-    body: JSON.stringify({ user: "spoofed", group, invitee: email }),
-  }));
-  expect((await invite(" Friend@Example.COM ")).status).toBe(200);
-  expect(await app.concepts.MembershipTracking._invitations({ invitee: "email-friend" })).toMatchObject([
-    { group, inviter: "email-host" },
-  ]);
-  expect(await app.concepts.MembershipTracking._invitations({ invitee: "friend@example.com" })).toEqual([]);
-  const missing = await invite("unknown@example.com");
-  expect(missing.status).toBe(404);
-  expect(await missing.json()).toEqual({ error: "FRIEND_NOT_FOUND" });
-  expect((await invite("not-an-email")).status).toBe(400);
-  expect(await app.concepts.MembershipTracking._invitations({ invitee: "email-friend" })).toHaveLength(1);
-});
-
 
 test("repeat NO clears only that person's heart across groups and remains safe when already off", async () => {
-  const user = "repeat-no-user", other = "repeat-other-user";
-  const { group } = await call("/groups/create", { user, name: "Repeat choices" });
-  const { invitation } = await call("/groups/invite", { user, group, invitee: other });
+  const user = "repeat-no-user",
+    other = "repeat-other-user";
+  const { group } = await call("/groups/create", {
+    user,
+    name: "Repeat choices",
+  });
+  const { invitation } = await call("/groups/invite", {
+    user,
+    group,
+    invitee: other,
+  });
   await call("/invitations/accept", { user: other, invitation });
   const second = await call("/groups/create", { user, name: "Other group" });
   const activity = await save("Shared repeat choice");
-  for (const target of [group, second.group]) await call("/activities/add-to-group", { user, group: target, activity });
+  for (const target of [group, second.group])
+    await call("/activities/add-to-group", { user, group: target, activity });
   await call("/activities/want", { user: other, group, activity });
   await call("/activities/complete", { user, group, activity });
-  await call("/activities/repeat-preference", { user, group, activity, preference: "YES" });
-  await call("/activities/repeat-preference", { user, group, activity, preference: "UNKNOWN" });
-  expect(await app.concepts.Wanting._wants({ user, item: activity })).toEqual({ wanted: true });
+  await call("/activities/repeat-preference", {
+    user,
+    group,
+    activity,
+    preference: "YES",
+  });
+  await call("/activities/repeat-preference", {
+    user,
+    group,
+    activity,
+    preference: "UNKNOWN",
+  });
+  expect(await app.concepts.Wanting._wants({ user, item: activity })).toEqual({
+    wanted: true,
+  });
   for (let attempt = 0; attempt < 2; attempt++) {
-    await call("/activities/repeat-preference", { user, group, activity, preference: "NO" });
-    expect(await app.concepts.Wanting._wants({ user, item: activity })).toEqual({ wanted: false });
+    await call("/activities/repeat-preference", {
+      user,
+      group,
+      activity,
+      preference: "NO",
+    });
+    expect(await app.concepts.Wanting._wants({ user, item: activity })).toEqual(
+      { wanted: false },
+    );
   }
   for (const target of [group, second.group]) {
-    const page = (await call("/activities/get", { user, group: target, activity })).page.activity;
+    const page = (
+      await call("/activities/get", { user, group: target, activity })
+    ).page.activity;
     expect(page.interestedMembers).not.toContain(user);
-    expect(page.members.find((member: { user: string }) => member.user === user)).toMatchObject({ completed: true, repeatPreference: "NO", wanted: false });
+    expect(
+      page.members.find((member: { user: string }) => member.user === user),
+    ).toMatchObject({ completed: true, repeatPreference: "NO", wanted: false });
   }
-  expect(await app.concepts.Wanting._wants({ user: other, item: activity })).toEqual({ wanted: true });
-  await call("/activities/repeat-preference", { user, group, activity, preference: "YES" });
-  expect(await app.concepts.Wanting._wants({ user, item: activity })).toEqual({ wanted: true });
+  expect(
+    await app.concepts.Wanting._wants({ user: other, item: activity }),
+  ).toEqual({ wanted: true });
+  await call("/activities/repeat-preference", {
+    user,
+    group,
+    activity,
+    preference: "YES",
+  });
+  expect(await app.concepts.Wanting._wants({ user, item: activity })).toEqual({
+    wanted: true,
+  });
 });

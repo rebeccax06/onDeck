@@ -176,6 +176,28 @@ export type OnDeckWire = {
     };
     error: { error: AppWideError | "INVALID_INPUT" | "INVALID_NAME" };
   };
+  "/groups/create-link": {
+    input: {
+      "group": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["createLink"]>[0], ["group"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["createLink"]>[0], ["user"]>>;
+    };
+    output: {
+      "expires": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["createLink"]>>, ["expires"]>>;
+      "link": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["createLink"]>>, ["link"]>>;
+      "token": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["createLink"]>>, ["token"]>>;
+    };
+    error: { error: AppWideError | "INVALID_INPUT" | "NOT_A_MEMBER" | "NO_SUCH_GROUP" };
+  };
+  "/groups/delete": {
+    input: {
+      "group": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["deleteGroup"]>[0], ["group"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["deleteGroup"]>[0], ["user"]>>;
+    };
+    output: {
+      "success": true;
+    };
+    error: { error: AppWideError | "INVALID_INPUT" | "NOT_A_MEMBER" | "NO_SUCH_GROUP" };
+  };
   "/groups/get": {
     input: {
       "group": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.computations)["groupAccessError"]["fn"]>[0], ["group"]>>;
@@ -213,19 +235,64 @@ export type OnDeckWire = {
     };
     error: { error: AppWideError | "INVALID_INPUT" | "NOT_A_MEMBER" | "NO_SUCH_GROUP" | string };
   };
-  "/groups/list": {
+  "/groups/links": {
     input: {
-      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["_groups"]>[0], ["user"]>>;
+      "group": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.computations)["groupAccessError"]["fn"]>[0], ["group"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.computations)["groupAccessError"]["fn"]>[0], ["user"]>>;
     };
     output: {
       "book": {
-        "groups": {
-          "group": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["_groups"]>>>, ["group"]>>;
-          "name": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["_groups"]>>>, ["name"]>>;
+        "links": {
+          "expires": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["_links"]>>>, ["expires"]>>;
+          "link": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["_links"]>>>, ["link"]>>;
         }[];
       };
     };
+    error: { error: AppWideError | "INVALID_INPUT" | string };
+  };
+  "/groups/list": {
+    input: {
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.computations)["groupCards"]["fn"]>[0], ["user"]>>;
+    };
+    output: {
+      "book": {
+        "groups": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.computations)["groupCards"]["fn"]>>, []>>;
+      };
+    };
     error: { error: AppWideError | "INVALID_INPUT" };
+  };
+  "/groups/order": {
+    input: {
+      "order": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["GroupOrdering"]["save"]>[0], ["order"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["GroupOrdering"]["save"]>[0], ["user"]>>;
+    };
+    output: {
+      "success": true;
+    };
+    error: { error: AppWideError | "INVALID_INPUT" | "INVALID_ORDER" };
+  };
+  "/groups/revoke-link": {
+    input: {
+      "group": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["revokeLink"]>[0], ["group"]>>;
+      "link": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["revokeLink"]>[0], ["link"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["revokeLink"]>[0], ["user"]>>;
+    };
+    output: {
+      "success": true;
+    };
+    error: { error: AppWideError | "INVALID_INPUT" | "NOT_A_MEMBER" | "NO_SUCH_GROUP" };
+  };
+  "/groups/update": {
+    input: {
+      "cover"?: Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["updateGroup"]>[0], ["cover"]>>;
+      "group": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["updateGroup"]>[0], ["group"]>>;
+      "name": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["updateGroup"]>[0], ["name"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["updateGroup"]>[0], ["user"]>>;
+    };
+    output: {
+      "success": true;
+    };
+    error: { error: AppWideError | "INVALID_COVER" | "INVALID_INPUT" | "INVALID_NAME" | "NOT_A_MEMBER" | "NO_SUCH_GROUP" };
   };
   "/invitations/accept": {
     input: {
@@ -246,6 +313,16 @@ export type OnDeckWire = {
       "success": true;
     };
     error: { error: AppWideError | "INVALID_INPUT" | "NOT_INVITED" | "NO_SUCH_INVITATION" };
+  };
+  "/invitations/join-link": {
+    input: {
+      "token": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["joinLink"]>[0], ["token"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["joinLink"]>[0], ["user"]>>;
+    };
+    output: {
+      "group": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["joinLink"]>>, ["group"]>>;
+    };
+    error: { error: AppWideError | "INVALID_INPUT" | "INVALID_LINK" };
   };
   "/invitations/list": {
     input: {
@@ -449,6 +526,28 @@ export type OnDeckWireHttp = {
     };
     error: { error: HttpAppWideError | "INVALID_REQUEST" };
   };
+  "/groups/create-link": {
+    input: {
+      "group": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["createLink"]>[0], ["group"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["createLink"]>[0], ["user"]>>;
+    };
+    output: {
+      "expires": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["createLink"]>>, ["expires"]>>;
+      "link": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["createLink"]>>, ["link"]>>;
+      "token": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["createLink"]>>, ["token"]>>;
+    };
+    error: { error: HttpAppWideError | "FORBIDDEN" | "INVALID_REQUEST" | "NOT_FOUND" };
+  };
+  "/groups/delete": {
+    input: {
+      "group": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["deleteGroup"]>[0], ["group"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["deleteGroup"]>[0], ["user"]>>;
+    };
+    output: {
+      "success": true;
+    };
+    error: { error: HttpAppWideError | "FORBIDDEN" | "INVALID_REQUEST" | "NOT_FOUND" };
+  };
   "/groups/get": {
     input: {
       "group": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.computations)["groupAccessError"]["fn"]>[0], ["group"]>>;
@@ -486,19 +585,64 @@ export type OnDeckWireHttp = {
     };
     error: { error: HttpAppWideError | "FORBIDDEN" | "INTERNAL_ERROR" | "INVALID_REQUEST" | "NOT_FOUND" };
   };
-  "/groups/list": {
+  "/groups/links": {
     input: {
-      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["_groups"]>[0], ["user"]>>;
+      "group": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.computations)["groupAccessError"]["fn"]>[0], ["group"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.computations)["groupAccessError"]["fn"]>[0], ["user"]>>;
     };
     output: {
       "book": {
-        "groups": {
-          "group": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["_groups"]>>>, ["group"]>>;
-          "name": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["_groups"]>>>, ["name"]>>;
+        "links": {
+          "expires": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["_links"]>>>, ["expires"]>>;
+          "link": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["_links"]>>>, ["link"]>>;
         }[];
       };
     };
+    error: { error: HttpAppWideError | "INTERNAL_ERROR" | "INVALID_REQUEST" };
+  };
+  "/groups/list": {
+    input: {
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.computations)["groupCards"]["fn"]>[0], ["user"]>>;
+    };
+    output: {
+      "book": {
+        "groups": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.computations)["groupCards"]["fn"]>>, []>>;
+      };
+    };
     error: { error: HttpAppWideError | "INVALID_REQUEST" };
+  };
+  "/groups/order": {
+    input: {
+      "order": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["GroupOrdering"]["save"]>[0], ["order"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["GroupOrdering"]["save"]>[0], ["user"]>>;
+    };
+    output: {
+      "success": true;
+    };
+    error: { error: HttpAppWideError | "INVALID_REQUEST" };
+  };
+  "/groups/revoke-link": {
+    input: {
+      "group": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["revokeLink"]>[0], ["group"]>>;
+      "link": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["revokeLink"]>[0], ["link"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["revokeLink"]>[0], ["user"]>>;
+    };
+    output: {
+      "success": true;
+    };
+    error: { error: HttpAppWideError | "FORBIDDEN" | "INVALID_REQUEST" | "NOT_FOUND" };
+  };
+  "/groups/update": {
+    input: {
+      "cover"?: Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["updateGroup"]>[0], ["cover"]>>;
+      "group": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["updateGroup"]>[0], ["group"]>>;
+      "name": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["updateGroup"]>[0], ["name"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["updateGroup"]>[0], ["user"]>>;
+    };
+    output: {
+      "success": true;
+    };
+    error: { error: HttpAppWideError | "FORBIDDEN" | "INVALID_REQUEST" | "NOT_FOUND" };
   };
   "/invitations/accept": {
     input: {
@@ -519,6 +663,16 @@ export type OnDeckWireHttp = {
       "success": true;
     };
     error: { error: HttpAppWideError | "FORBIDDEN" | "INVALID_REQUEST" | "NOT_FOUND" };
+  };
+  "/invitations/join-link": {
+    input: {
+      "token": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["joinLink"]>[0], ["token"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["joinLink"]>[0], ["user"]>>;
+    };
+    output: {
+      "group": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["joinLink"]>>, ["group"]>>;
+    };
+    error: { error: HttpAppWideError | "INVALID_REQUEST" | "NOT_FOUND" };
   };
   "/invitations/list": {
     input: {

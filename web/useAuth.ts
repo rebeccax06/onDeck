@@ -29,7 +29,7 @@ export function useAuth(onAccountChange: () => void) {
         __internal_ClerkUICtor?: NonNullable<NonNullable<Parameters<Clerk["load"]>[0]>["ui"]>["ClerkUI"];
       }).__internal_ClerkUICtor;
       if (!ui) throw new Error("The sign-in screen did not initialize. Please reload.");
-      await clerk.load({ ui: { ClerkUI: ui }, signInFallbackRedirectUrl: "/", signUpFallbackRedirectUrl: "/", afterSignOutUrl: "/" });
+      await clerk.load({ ui: { ClerkUI: ui }, signInFallbackRedirectUrl: window.location.href, signUpFallbackRedirectUrl: window.location.href, afterSignOutUrl: "/" });
       unsubscribe = clerk.addListener(({ user: account, session }) => {
         const nextUser = session?.status === "active" ? account?.id ?? "" : "";
         accountName.value = account?.fullName || account?.primaryEmailAddress?.emailAddress || "Your account";
@@ -50,6 +50,6 @@ export function useAuth(onAccountChange: () => void) {
   onUnmounted(() => unsubscribe?.());
   return { user, accountName, authReady, authError, signIn, signUp, editProfile,
     getToken: async () => await clerk?.session?.getToken() ?? null,
-    signOut: async () => { await clerk?.signOut(); },
+    signOut: async () => { await clerk?.signOut({ redirectUrl: window.location.href }); },
   };
 }

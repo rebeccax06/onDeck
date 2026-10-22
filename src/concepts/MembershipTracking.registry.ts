@@ -1,12 +1,14 @@
 import { registerConcept } from "@mit-sdg/sync-engine/assembly";
 import spec from "@design/concepts/MembershipTracking.md" with { type: "text" };
-import { MembershipTrackingConcept, InvalidName, NoSuchGroup, NotAMember, AlreadyAMember, AlreadyInvited, NoSuchInvitation, NotInvited } from "./MembershipTracking.ts";
+import { MembershipTrackingConcept, InvalidName, InvalidCover, NoSuchGroup, NotAMember, AlreadyAMember, AlreadyInvited, NoSuchInvitation, NotInvited, InvalidLink } from "./MembershipTracking.ts";
 
 export const membershipTracking = registerConcept({
   class: MembershipTrackingConcept,
   spec,
   refusals: {
+    INVALID_LINK: InvalidLink,
     INVALID_NAME: InvalidName,
+    INVALID_COVER: InvalidCover,
     NO_SUCH_GROUP: NoSuchGroup,
     NOT_A_MEMBER: NotAMember,
     ALREADY_A_MEMBER: AlreadyAMember,

@@ -1,3 +1,4 @@
+import type { GroupOrderingConcept } from "../concepts/GroupOrdering.ts";
 import { validInstant, type ActivityCapturingConcept } from "../concepts/Concept.ts";
 import type { MembershipTrackingConcept } from "../concepts/MembershipTracking.ts";
 import type { SuggestingConcept } from "../concepts/Suggesting.ts";
@@ -5,6 +6,7 @@ import type { WantingConcept } from "../concepts/Wanting.ts";
 import type { ExperiencingConcept } from "../concepts/Experiencing.ts";
 
 export type Instances = {
+  GroupOrdering: GroupOrderingConcept;
   ActivityCapturing: ActivityCapturingConcept;
   MembershipTracking: MembershipTrackingConcept;
   Suggesting: SuggestingConcept;

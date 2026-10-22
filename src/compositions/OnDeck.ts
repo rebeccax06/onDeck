@@ -14,7 +14,7 @@ function options(required: string[], optional: string[] = []) {
 
 /** receive → concept action → respond pattern. */
 export function createComposition(set: ReturnType<typeof createApplicationConceptSet>) {
-  const { MembershipTracking, ActivityCapturing, Suggesting, Wanting, Experiencing } = set.concepts;
+  const { GroupOrdering, MembershipTracking, ActivityCapturing, Suggesting, Wanting, Experiencing } = set.concepts;
   const calculations = set.computations;
   const MemberMayAccessGroup = view("(user) may access (group)", ({ user, group }, _outputs, _bindings) =>
     where(MembershipTracking._membership({ user, group }).is({ member: true })),
@@ -26,9 +26,33 @@ export function createComposition(set: ReturnType<typeof createApplicationConcep
     where(compute(calculations.participantError, { group, participants, filters }, error), is.among(error, [null])),
   ).holds();
 
-  const GroupList = former("groups for (user)", ({ user }, { group, name }) => form({
-    groups: each(MembershipTracking._groups({ user }).is({ group, name })).form({ group, name }),
+  const GroupList = former("groups for (user)", ({ user }, { groups }) =>
+    where(compute(calculations.groupCards, { user }, groups)).form({ groups }));
+  const InviteLinks = former("invite links for (group)", ({ group }, { link, expires }) => form({
+    links: each(MembershipTracking._links({ group }).is({ link, expires })).form({ link, expires }),
   }));
+  const SaveGroupOrder = endpoint("/groups/order", ({ user, order }) =>
+    receive({ user, order }).then(GroupOrdering.save({ user, order }).responds({})).then(respond({ success: true })), options(["user", "order"]));
+  const CreateInviteLink = endpoint("/groups/create-link", ({ user, group, link, token, expires }) =>
+    receive({ user, group }).then(MembershipTracking.createLink({ user, group }).responds({ link, token, expires }))
+      .then(respond({ link, token, expires })), options(["user", "group"]));
+  const RevokeInviteLink = endpoint("/groups/revoke-link", ({ user, group, link }) =>
+    receive({ user, group, link }).then(MembershipTracking.revokeLink({ user, group, link }).responds({}))
+      .then(respond({ success: true })), options(["user", "group", "link"]));
+  const JoinInviteLink = endpoint("/invitations/join-link", ({ user, token, group }) =>
+    receive({ user, token }).then(MembershipTracking.joinLink({ user, token }).responds({ group }))
+      .then(respond({ group })), options(["user", "token"]));
+  const ListInviteLinks = endpoint("/groups/links", ({ user, group, error }) =>
+    receive({ user, group }).where(compute(calculations.groupAccessError, { user, group }, error)).then(
+      where(is.among(error, [null]), MemberMayAccessGroup({ user, group })).then(respond({ book: InviteLinks({ group }) })).named("allowed"),
+      where(is.among(error, errors)).then(respond({ error })).named("refused"),
+    ), options(["user", "group"]));
+  const UpdateGroup = endpoint("/groups/update", ({ user, group, name, cover }) =>
+    receive({ user, group, name, cover }).then(MembershipTracking.updateGroup({ user, group, name, cover }).responds({}))
+      .then(respond({ success: true })), options(["user", "group", "name"], ["cover"]));
+  const DeleteGroup = endpoint("/groups/delete", ({ user, group }) =>
+    receive({ user, group }).then(MembershipTracking.deleteGroup({ user, group }).responds({}))
+      .then(respond({ success: true })), options(["user", "group"]));
   const GroupPage = former("the group page (group)", ({ group }, { name, user }) =>
     where(MembershipTracking._get({ group }).is({ name })).form({ group, name,
       members: each(MembershipTracking._members({ group }).is({ user })).form({ user }),
@@ -283,6 +307,8 @@ export function createComposition(set: ReturnType<typeof createApplicationConcep
   );
 
   return {
+    UpdateGroup, DeleteGroup,
+    SaveGroupOrder, CreateInviteLink, RevokeInviteLink, JoinInviteLink, ListInviteLinks, InviteLinks,
     MemberMayAccessGroup, MemberMayAccessActivity, ValidParticipants,
     GroupList, GroupPage, InvitationInbox, CapturePreview, GroupCollection, ActivityPage, PickOptions,
     SuggestionCreatesWant, CompletionClearsWant, RepeatYesCreatesWant, RepeatNoClearsWant, CaptureStartedProposesDetails,

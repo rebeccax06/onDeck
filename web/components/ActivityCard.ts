@@ -10,6 +10,7 @@ export const ActivityCard = defineComponent({
   emits: {
     open: (_activity: Activity) => true,
     heart: (_activity: Activity) => true,
+    delete: (_activity: Activity) => true,
   },
   setup(props) {
     const wanted = computed(() => props.activity.interestedMembers.includes(props.user));
@@ -19,8 +20,9 @@ export const ActivityCard = defineComponent({
     return { wanted, metadata };
   },
   template: `
-    <article>
-      <p class="eyebrow">{{ activity.category || 'SOMETHING TO LOOK FORWARD TO' }}</p>
+    <article class="activity-card" :data-suggestion="activity.suggestion">
+      <button v-if="activity.suggester===user" type="button" class="activity-delete" @click.stop="$emit('delete', activity)" :aria-label="'Delete ' + activity.name" title="Delete suggestion"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg></button>
+      <p v-if="activity.category" class="eyebrow">{{ activity.category }}</p>
       <h3><button class="link" @click="$emit('open', activity)">{{ activity.name }}</button></h3>
       <p class="metadata">{{ metadata }}</p>
       <div class="activity-footer">

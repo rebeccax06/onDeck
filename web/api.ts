@@ -12,8 +12,6 @@ export async function answer<T>(call: Promise<T>): Promise<Exclude<T, { error: u
   if (result && typeof result === "object" && "error" in result) {
     const code = String(result.error);
     const explanation: Record<string, string> = {
-      INVALID_EMAIL: "Enter a valid email address.",
-      FRIEND_NOT_FOUND: "No account with that verified email was found. Ask your friend to create an OnDeck account first, then retry.",
       UNAVAILABLE: "The service is unavailable. Please retry shortly.",
       UNAUTHORIZED: "Your session has expired. Please sign in again.",
       HEADER_RESOLUTION_FAILED: "Could not refresh your session. Please sign out and sign in again.",

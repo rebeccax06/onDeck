@@ -1,3 +1,4 @@
+import { GroupOrderingConcept } from "./concepts/GroupOrdering.ts";
 import type { Db } from "mongodb";
 import { ActivityCapturingConcept } from "./concepts/Concept.ts";
 import { MembershipTrackingConcept } from "./concepts/MembershipTracking.ts";
@@ -7,6 +8,7 @@ import { ExperiencingConcept } from "./concepts/Experiencing.ts";
 
 export function createInstances(db: Db) {
   return {
+    GroupOrdering: new GroupOrderingConcept(db),
     ActivityCapturing: new ActivityCapturingConcept(db),
     MembershipTracking: new MembershipTrackingConcept(db),
     Suggesting: new SuggestingConcept(db),
