@@ -8,7 +8,7 @@ export function inputValidator(required: string[], optional: string[] = []): End
     const keys = new Set([...required, ...optional]);
     if (Object.keys(value).some((key) => !keys.has(key))) return { ok: false, detail: "Unknown input field." };
     for (const key of required) {
-      if (key === "participants") {
+      if (["participants", "order"].includes(key)) {
         if (!Array.isArray(value[key]) || value[key].some((user) => typeof user !== "string" || user.length === 0)) return { ok: false, detail: "participants must be an array of user IDs." };
       } else if (typeof value[key] !== "string" || (key === "user" && value[key] === "")) return { ok: false, detail: `${key} must be a string.` };
     }
