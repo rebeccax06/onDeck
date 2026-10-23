@@ -7,6 +7,8 @@ A website to help you and your friends keep track of the things you want to do
 [Concept specifications, essential reactions, and concept roles](./concepts.md)
 [UI Sketches](./ui-sketches.md)
 [User Journey](./user-journey.md)
+[Visual Design Study](https://docs.google.com/presentation/d/1EJIy1UGXG7Z7uk9DXubN1bM-2p0PRY6cemwZzJnPhvw/edit?usp=sharing)
+
 
 ## Application design
 
@@ -19,13 +21,7 @@ Validate the design independently with `bun run check:design`. After implementat
 # Demo
 
 [P2 Alpha](https://drive.google.com/file/d/1MzA0Gtd-2lBIoQ_Ru9OA5ZyYlzV7R07Q/view?usp=sharing)
-
-# Design Notebook
-
-[Design changes](./design-changes.md) · [Completion plan](./design/completion-plan.md)
-
-# Visual Design Study
-[Visual Design Study](https://docs.google.com/presentation/d/1EJIy1UGXG7Z7uk9DXubN1bM-2p0PRY6cemwZzJnPhvw/edit?usp=sharing)
+[P2 Beta](google.com)
 
 ## Run the API
 
@@ -89,3 +85,22 @@ The concept and composition tests cover all six concepts, including their main f
 
 Each concept has its own suite in `tests/concepts/<ConceptName>.test.ts`.
 Run one suite with, for example, `bun test tests/concepts/Wanting.test.ts`.
+
+### Saved test execution output
+
+[Full test output](./docs/test-results/bun-test.txt): **68 passed, 0 failed, 432 assertions across 16 files**, including the two-account desktop/mobile Chrome journey. The output includes the execution timestamp, base commit, working-tree status, and exit code. A late-answer warning during browser navigation is retained in the output; all assertions passed.
+
+The browser journey also injects a partial sharing failure, deletes a selected group through the API, and verifies recovery with another group. It checks that the original activity and first share are reused. Invitation expiry checks use a controlled clock, including the exact expiry boundary, without editing stored state.
+
+To rerun the same suite, install dependencies with `bun install`, copy `.env.example` to `.env`, and start MongoDB with `bun run db:up`. Then run:
+
+```sh
+ONDECK_BROWSER_TESTS=1 bun test
+```
+
+The browser test requires Google Chrome at its default macOS location; set `CHROME_PATH` to use another Chrome executable. It uses a temporary browser profile and database with test-only authentication, without real Clerk sign-in. To save a fresh execution transcript:
+
+```sh
+set -o pipefail
+ONDECK_BROWSER_TESTS=1 bun test 2>&1 | tee docs/test-results/bun-test.txt
+```

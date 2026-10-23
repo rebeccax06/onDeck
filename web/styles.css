@@ -530,12 +530,6 @@ input[type="checkbox"] {
   padding: 0;
   margin-bottom: 18px;
 }
-  margin-bottom: 20px;
-}
-  font-size: 0.85rem;
-}
-  margin-top: 8px;
-}
 .invite-list {
   list-style: none;
   padding: 0;
@@ -888,19 +882,6 @@ ol li p {
   display: block;
   margin-top: 5px;
 }
-  display: flex;
-  align-items: end;
-  gap: 10px;
-  margin: 24px 0;
-  padding-top: 20px;
-  border-top: 1px solid var(--line);
-}
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-}
-  white-space: nowrap;
-}
 .group-management-actions {
   display: flex;
   justify-content: space-between;
@@ -936,12 +917,6 @@ ol li p {
   .management-layout .members-panel,
   .invite-panel {
     padding: 18px;
-  }
-  .invite-email-form {
-    flex-wrap: wrap;
-  }
-  .invite-email-form label {
-    flex-basis: 100%;
   }
 }
 
@@ -1168,11 +1143,6 @@ button.danger-button {
 }
 button.danger-button:hover {
   background: #85241f;
-}
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  margin-top: 20px;
 }
 .pick-form > button {
   margin-top: 24px;

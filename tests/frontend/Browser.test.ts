@@ -31,7 +31,7 @@ browserTest(
       `ondeck_test_${crypto.randomUUID().replaceAll("-", "")}`,
     );
     const app = assembleApplication(db);
-    const authenticate = bearerAuthenticator({ alice: "alice", bob: "bob" });
+    const authenticate = bearerAuthenticator({ alice: "alice", bob: "bob", retry: "retry" });
     let origin = "";
     const origins: string[] = [];
     const hub = createLiveHub(authenticate, origins);
@@ -40,7 +40,13 @@ browserTest(
     });
     const inFlight = new Set<Promise<Response>>();
     let rejectNextOrder = false;
+    let sharesUntilFailure = 0;
+    let confirmations = 0;
     const trackedApi = (request: Request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/api/captures/confirm") confirmations++;
+      if (path === "/api/activities/add-to-group" && sharesUntilFailure > 0 && --sharesUntilFailure === 0)
+        return Promise.resolve(Response.json({ error: "UNAVAILABLE" }, { status: 503 }));
       if (
         new URL(request.url).pathname === "/api/groups/order" &&
         rejectNextOrder
@@ -966,6 +972,47 @@ browserTest(
       await alice.until(
         "document.querySelectorAll('.activity-card').length===0 && !document.querySelector('fieldset').disabled",
       );
+      console.info("Browser: recover partial sharing after a selected group disappears");
+      const call = async (path: string, input: Record<string, unknown>) => {
+        const response = await fetch(new URL(`/api${path}`, backend.url), {
+          method: "POST", headers: { Authorization: "Bearer retry", "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        });
+        expect(response.status).toBe(200);
+        return response.json() as Promise<any>;
+      };
+      const first = await call("/groups/create", { name: "A Saved" });
+      const removed = await call("/groups/create", { name: "B Removed" });
+      const recovery = await call("/groups/create", { name: "C Recovery" });
+      const retry = await page("retry");
+      await retry.until("document.querySelectorAll('.group-card').length===3 && !document.querySelector('fieldset').disabled");
+      await retry.click("Add activity");
+      await retry.input('input[placeholder="Coffee"]', "Shared despite interruption");
+      await retry.evaluate(`document.querySelectorAll('.share-picker label').forEach(label => {
+        const input = label.querySelector('input');
+        const selected = !label.textContent.includes('C Recovery');
+        if (input.checked !== selected) input.click();
+      })`);
+      const beforeConfirmations = confirmations;
+      sharesUntilFailure = 2;
+      await retry.click("Save and share");
+      await retry.until("document.querySelector('.activity-form')?.textContent.includes('Retry sharing') && document.querySelector('[role=alert]')?.textContent.includes('unavailable') && !document.querySelector('fieldset').disabled");
+      expect(await retry.evaluate("document.querySelector('.share-picker input:disabled')?.checked")).toBe(true);
+      await call("/groups/delete", { group: removed.group });
+      await retry.until("document.querySelectorAll('.share-picker label').length===2");
+      const recoveryNotice = await retry.evaluate("document.querySelector('.sharing-notice')?.textContent");
+      await retry.evaluate("[...document.querySelectorAll('.share-picker label')].find(label=>label.textContent.includes('C Recovery')).querySelector('input').click()");
+      await retry.click("Retry sharing");
+      await retry.until("document.querySelector('.activity-grid h3')?.textContent==='Shared despite interruption' && !document.querySelector('fieldset').disabled");
+      const firstShares = await app.concepts.Suggesting._forGroup({ group: first.group });
+      const recoveredShares = await app.concepts.Suggesting._forGroup({ group: recovery.group });
+      expect(firstShares).toHaveLength(1);
+      expect(recoveredShares).toHaveLength(1);
+      expect(firstShares[0]!.item).toBe(recoveredShares[0]!.item);
+      expect(confirmations - beforeConfirmations).toBe(1);
+      expect(recoveryNotice).toContain("successful shares are saved");
+      expect(await app.concepts.Suggesting._forGroup({ group: removed.group })).toEqual([]);
+      expect(retry.errors).toEqual([]);
       expect(alice.errors).toEqual([]);
       expect(bob.errors).toEqual([]);
     } finally {
@@ -981,5 +1028,5 @@ browserTest(
       await rm(profile, { recursive: true, force: true });
     }
   },
-  30_000,
+  45_000,
 );

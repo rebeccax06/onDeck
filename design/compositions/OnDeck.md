@@ -50,7 +50,7 @@ OnDeck.ConfirmCapture at /captures/confirm
 OnDeck.DiscardCapture at /captures/discard
 ```
 
-A member [adds a confirmed activity to a group](reaction:OnDeck.AddToGroup). The request supplies group and activity identities, verifies membership and that ActivityCapturing._get resolves the activity, then calls Suggesting.suggest. The UI retains the activity returned by confirmation while the user chooses groups. Sharing with multiple groups uses one request per group, with separate success or refusal results so a failed group does not obscure earlier successful additions.
+A member [adds a confirmed activity to a group](reaction:OnDeck.AddToGroup). The request supplies group and activity identities, verifies membership and that ActivityCapturing._get resolves the activity, then calls Suggesting.suggest. The UI retains the activity returned by confirmation while the user chooses groups. Sharing with multiple groups uses one request per group, with separate success or refusal results so a failed group does not obscure earlier successful additions. If membership changes, remove unavailable sharing targets and explain how to continue; retain the confirmed activity and completed shares when choosing another group.
 
 [SuggestionCreatesWant](reaction:OnDeck.SuggestionCreatesWant) calls Wanting.want after a successful suggestion if no want exists. Duplicate suggestions refuse ALREADY_SUGGESTED without changing interest.
 
@@ -172,4 +172,6 @@ OnDeck.DeleteGroup at /groups/delete
 
 Successful mutations notify affected members, the actor, and direct invitees after coordinated effects settle. Notices contain no group data; clients re-read authorized views. Membership changes notify previous and current members. Reconnect refreshes the view. Background reads preserve unfinished input and cannot apply stale account/group responses.
 
-[API details](../../docs/api.md), [interface decisions and testing](../../design-changes.md), and [user journey](../../user-journey.md) are documented separately.
+[API details](../../docs/api.md) and the [user journey](../../user-journey.md) are documented separately. Design decisions are recorded in the private design notebook.
+
+Frontend validation includes bundling the stylesheet with Bun alongside design, generated-artifact, and TypeScript checks. Removing a UI feature must remove complete obsolete style rules, leaving no orphaned declarations.

@@ -23,7 +23,7 @@ a set of Groups with
   an optional cover String
   a members set of Users
 
-Rule: Each Group also has invite links with a token hash, link identity, expiry Number.
+Rule: Each Group also has invite links with a token hash, link identity, expiry Number. A link is expired when the current time reaches its expiry; refusal leaves membership unchanged.
 
 a set of Invitations with
   a group Group

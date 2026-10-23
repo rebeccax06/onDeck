@@ -93,7 +93,8 @@
             <section v-if="tab==='add'" class="add-page">
               <h1>Add activity</h1>
               <form-surface @submit.prevent="save" class="activity-form">
-                <p v-if="savedActivity" class="hint">Saved. Retry sharing below.</p>
+                <p v-if="savedActivity && !sharingNotice" class="hint">Saved. Retry sharing below.</p>
+                <p v-if="sharingNotice" class="hint sharing-notice" role="status">{{ sharingNotice }}</p>
                 <fieldset :disabled="!!savedActivity" class="form-section"><h2>Activity details</h2>
                   <label>What's the idea?<input v-model="fields.name" required placeholder="Coffee" maxlength="500" /></label>
                   <label>Link <span class="optional">optional</span><input v-model="fields.source" placeholder="https://…" /></label>

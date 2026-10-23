@@ -33,7 +33,7 @@ test("links store hashes, persist, permit explicit joining, and can be revoked",
     group,
   });
   expect(
-    JSON.stringify(await db.collection("membershipTracking").findOne({})),
+    JSON.stringify(await db.collection<{ _id: string }>("membershipTracking").findOne({ _id: group })),
   ).not.toContain(token);
   expect(
     await new MembershipTrackingConcept(db)._link({ token }),
@@ -55,7 +55,8 @@ test("links store hashes, persist, permit explicit joining, and can be revoked",
 });
 
 test("expired links cannot be previewed or accepted, and an inviter leaving does not revoke a valid link", async () => {
-  const membership = new MembershipTrackingConcept(db);
+  let now = Date.now();
+  const membership = new MembershipTrackingConcept(db, undefined, () => now);
   const { group } = await membership.create({
     creator: "host",
     name: "Expiry",
@@ -64,17 +65,15 @@ test("expired links cannot be previewed or accepted, and an inviter leaving does
     user: "host",
     group,
   });
-  await db
-    .collection<{ _id: string }>("membershipTracking")
-    .updateOne(
-      { _id: group },
-      { $set: { "links.$[link].expires": 1 } },
-      { arrayFilters: [{ "link.link": expired.link }] },
-    );
+  now = expired.expires - 1;
+  expect(await membership._link({ token: expired.token })).toHaveLength(1);
+  now = expired.expires;
   expect(await membership._link({ token: expired.token })).toEqual([]);
   await expect(
     membership.joinLink({ user: "late", token: expired.token }),
   ).rejects.toBeInstanceOf(InvalidLink);
+  expect(await membership._membership({ user: "late", group })).toEqual({ member: false });
+  expect(await membership._members({ group })).toEqual([{ user: "host" }]);
   const valid = await membership.createLink({
     user: "host",
     group,

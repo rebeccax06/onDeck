@@ -178,6 +178,17 @@ createApp({
     const fields = ref(blank()),
       shareGroups = ref<string[]>([]),
       sharedGroups = ref<string[]>([]);
+    const sharingNotice = ref("");
+    function applyGroups(next: Group[]) {
+      const available = new Set(next.map((item) => item.group));
+      if (shareGroups.value.some((id) => !available.has(id))) {
+        shareGroups.value = shareGroups.value.filter((id) => available.has(id));
+        sharingNotice.value = savedActivity.value
+          ? "A selected group is no longer available. Your activity and successful shares are saved. Choose another group or retry the remaining selection."
+          : "A selected group is no longer available. Choose where to share below.";
+      }
+      groups.value = next;
+    }
     const allShareGroupsSelected = computed(
       () =>
         groups.value.length > 0 &&
@@ -285,7 +296,7 @@ createApp({
         answer(client.groups.list({ user: user.value })),
         answer(client.invitations.list({ user: user.value })),
       ]);
-      groups.value = book.book.groups;
+      applyGroups(book.book.groups);
       invitations.value = inbox.inbox.invitations;
       if (!groups.value.some((g) => g.group === group.value))
         group.value = groups.value[0]?.group ?? "";
@@ -740,6 +751,7 @@ createApp({
       }, "Draft discarded.");
     }
     function resetCapture() {
+      sharingNotice.value = "";
       capture.value = "";
       savedActivity.value = "";
       fields.value = blank();
@@ -1099,7 +1111,7 @@ createApp({
         clearTimeout(readRetry);
         readAttempts = 0;
         const sameGroup = snapshot.previousGroup === snapshot.selectedGroup;
-        groups.value = snapshot.groups;
+        applyGroups(snapshot.groups);
         if (snapshot.links) {
           inviteLinks.value = snapshot.links;
           if (!snapshot.links.some((link) => link.link === inviteLinkID)) {
@@ -1300,6 +1312,7 @@ createApp({
       toggleAllShareGroups,
       shareGroups,
       sharedGroups,
+      sharingNotice,
       participants,
       filters,
       options,

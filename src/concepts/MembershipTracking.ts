@@ -31,6 +31,7 @@ export class MembershipTrackingConcept {
   constructor(
     db: Db,
     private readonly freshID: () => string = () => crypto.randomUUID(),
+    private readonly now: () => number = Date.now,
   ) {
     this.groups = db.collection<Group>("membershipTracking");
   }
@@ -213,7 +214,7 @@ export class MembershipTrackingConcept {
     await requireMember(this.groups, user, group);
     const token = crypto.randomUUID() + crypto.randomUUID();
     const link = this.freshID(),
-      expires = Date.now() + 7 * 24 * 60 * 60 * 1000;
+      expires = this.now() + 7 * 24 * 60 * 60 * 1000;
     const result = await this.groups.updateOne(
       { _id: group, members: user },
       { $push: { links: { link, hash: hash(token), expires } } },
@@ -249,11 +250,11 @@ export class MembershipTrackingConcept {
   }): Promise<{ group: string }> {
     const found = await this.groups.findOne({
       links: {
-        $elemMatch: { hash: hash(token), expires: { $gt: Date.now() } },
+        $elemMatch: { hash: hash(token), expires: { $gt: this.now() } },
       },
     });
     const entry = found?.links?.find(
-      (link) => link.hash === hash(token) && link.expires > Date.now(),
+      (link) => link.hash === hash(token) && link.expires > this.now(),
     );
     if (!found || !entry)
       throw new InvalidLink("This invitation has expired or was revoked.");
@@ -261,7 +262,7 @@ export class MembershipTrackingConcept {
       {
         _id: found._id,
         links: {
-          $elemMatch: { hash: entry.hash, expires: { $gt: Date.now() } },
+          $elemMatch: { hash: entry.hash, expires: { $gt: this.now() } },
         },
       },
       {
@@ -278,7 +279,7 @@ export class MembershipTrackingConcept {
     group: string;
   }): Promise<Array<{ link: string; expires: number }>> {
     return ((await this.groups.findOne({ _id: group }))?.links ?? [])
-      .filter((link) => link.expires > Date.now())
+      .filter((link) => link.expires > this.now())
       .sort((a, b) => a.expires - b.expires || order(a.link, b.link))
       .map(({ link, expires }) => ({ link, expires }));
   }
@@ -289,11 +290,11 @@ export class MembershipTrackingConcept {
   }): Promise<Array<{ group: string; name: string; link: string }>> {
     const found = await this.groups.findOne({
       links: {
-        $elemMatch: { hash: hash(token), expires: { $gt: Date.now() } },
+        $elemMatch: { hash: hash(token), expires: { $gt: this.now() } },
       },
     });
     const link = found?.links?.find(
-      (link) => link.hash === hash(token) && link.expires > Date.now(),
+      (link) => link.hash === hash(token) && link.expires > this.now(),
     );
     return found && link
       ? [{ group: found._id, name: found.name, link: link.link }]
