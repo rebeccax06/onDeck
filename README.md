@@ -21,7 +21,7 @@ Validate the design independently with `bun run check:design`. After implementat
 # Demo
 
 [P2 Alpha](https://drive.google.com/file/d/1MzA0Gtd-2lBIoQ_Ru9OA5ZyYlzV7R07Q/view?usp=sharing)
-[P2 Beta](google.com)
+[P2 Beta](https://youtu.be/lOiKlo7TzRc)
 
 ## Run the API
 
