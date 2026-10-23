@@ -12,7 +12,7 @@ export class InvalidLink extends Error {}
 
 const hash = (token: string) =>
   new Bun.CryptoHasher("sha256").update(token).digest("hex");
-type Link = { link: string; hash: string; recipient?: string; expires: number };
+type Link = { link: string; hash: string; expires: number };
 
 type Invitation = { invitation: string; inviter: string; invitee: string };
 type Group = {
@@ -255,7 +255,7 @@ export class MembershipTrackingConcept {
     const entry = found?.links?.find(
       (link) => link.hash === hash(token) && link.expires > Date.now(),
     );
-    if (!found || !entry || entry.recipient)
+    if (!found || !entry)
       throw new InvalidLink("This invitation has expired or was revoked.");
     const result = await this.groups.updateOne(
       {
@@ -278,7 +278,7 @@ export class MembershipTrackingConcept {
     group: string;
   }): Promise<Array<{ link: string; expires: number }>> {
     return ((await this.groups.findOne({ _id: group }))?.links ?? [])
-      .filter((link) => !link.recipient && link.expires > Date.now())
+      .filter((link) => link.expires > Date.now())
       .sort((a, b) => a.expires - b.expires || order(a.link, b.link))
       .map(({ link, expires }) => ({ link, expires }));
   }
@@ -295,7 +295,7 @@ export class MembershipTrackingConcept {
     const link = found?.links?.find(
       (link) => link.hash === hash(token) && link.expires > Date.now(),
     );
-    return found && link && !link.recipient
+    return found && link
       ? [{ group: found._id, name: found.name, link: link.link }]
       : [];
   }
