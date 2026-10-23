@@ -36,3 +36,11 @@ Pick Results (sketch 9)
 ![Pick Options](ui-sketches/pickOptions.png)
 OnDeck resurfaces saved activities that are relevant to the selected people and constraints, showing information such as how many selected members want to do each activity and whether someone has already done it. The results provide a small set of promising options rather than automatically choosing an activity, leaving the final decision to the group.
 
+
+# Visual style across the app
+
+I used a system sans-serif font so labels and inputs stay familiar and load without a font download. Page titles, section headings, and field labels have distinct sizes and weights. Dark forest text sits on white or pale green surfaces; muted text is reserved for supporting information. Green marks primary actions, selected navigation, and positive state. Red marks destructive actions and errors, always with words explaining the meaning.
+
+For the form, I made sure I had aligned labels, restrained borders, generous section spacing, and a clear action footer. I looked at Lattice for some UI inspiration which helped me add the light surfaces, consistent line icons, and restrained green accents. I kept the app’s headings compact so styling does not crowd out the actual task.
+
+Keyboard focus has a visible outline. Hover-only card controls also appear on keyboard focus, and touch layouts expose the drag grip. Confirmation dialogs focus Cancel first, keep keyboard focus inside the dialog, support Escape, and return focus to the trigger. Motion is removed when the device requests reduced motion. These choices support keyboard and touch use; a full accessibility audit is still separate work.

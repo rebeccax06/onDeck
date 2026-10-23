@@ -35,8 +35,8 @@ Defined in [ActivityCapturing](../design/concepts/ActivityCapturing.md), line 1.
 
 #### Instances
 
-- `ActivityCapturing` — instance of `ActivityCapturing` — [Application types](../design/types.md), line 15.
-  - `User` is `Person` — [Application types](../design/types.md), line 16.
+- `ActivityCapturing` — instance of `ActivityCapturing` — [Application types](../design/types.md), line 18.
+  - `User` is `Person` — [Application types](../design/types.md), line 19.
 
 ### Experiencing
 
@@ -59,9 +59,27 @@ Defined in [Experiencing](../design/concepts/Experiencing.md), line 1.
 
 #### Instances
 
-- `Experiencing` — instance of `Experiencing` — [Application types](../design/types.md), line 27.
-  - `Item` is `ActivityCapturing.Activity` — [Application types](../design/types.md), line 29.
-  - `User` is `Person` — [Application types](../design/types.md), line 28.
+- `Experiencing` — instance of `Experiencing` — [Application types](../design/types.md), line 30.
+  - `Item` is `ActivityCapturing.Activity` — [Application types](../design/types.md), line 32.
+  - `User` is `Person` — [Application types](../design/types.md), line 31.
+
+### GroupOrdering
+
+Defined in [GroupOrdering](../design/concepts/GroupOrdering.md), line 1.
+
+#### Actions
+
+- `save(user: User, order: Json) : returns ()`
+  - Refuses `INVALID_ORDER`: Choose a valid group order.
+
+#### Queries
+
+- `_get(user: User) : one (order: Json)`
+
+#### Instances
+
+- `GroupOrdering` — instance of `GroupOrdering` — [Application types](../design/types.md), line 12.
+  - `User` is `Person` — [Application types](../design/types.md), line 13.
 
 ### MembershipTracking
 
@@ -85,6 +103,22 @@ Defined in [MembershipTracking](../design/concepts/MembershipTracking.md), line 
 - `leave(user: User, group: Group) : returns ()`
   - Refuses `NO_SUCH_GROUP`: There is no such group.
   - Refuses `NOT_A_MEMBER`: You do not belong to this group.
+- `updateGroup(user: User, group: Group, name: String, cover: String | null) : returns ()`
+  - Refuses `NO_SUCH_GROUP`: There is no such group.
+  - Refuses `NOT_A_MEMBER`: Only members can edit a group.
+  - Refuses `INVALID_NAME`: Give the group a name.
+  - Refuses `INVALID_COVER`: Choose a valid group picture.
+- `deleteGroup(user: User, group: Group) : returns ()`
+  - Refuses `NO_SUCH_GROUP`: There is no such group.
+  - Refuses `NOT_A_MEMBER`: Only members can delete a group.
+- `createLink(user: User, group: Group) : returns (link: String, token: String, expires: Number)`
+  - Refuses `NO_SUCH_GROUP`: There is no such group.
+  - Refuses `NOT_A_MEMBER`: Only members can invite someone.
+- `revokeLink(user: User, group: Group, link: String) : returns ()`
+  - Refuses `NO_SUCH_GROUP`: There is no such group.
+  - Refuses `NOT_A_MEMBER`: Only members can revoke invitations.
+- `joinLink(user: User, token: String) : returns (group: Group)`
+  - Refuses `INVALID_LINK`: This invitation has expired or was revoked.
 
 #### Queries
 
@@ -94,11 +128,14 @@ Defined in [MembershipTracking](../design/concepts/MembershipTracking.md), line 
 - `_membership(user: User, group: Group) : one (member: Flag)`
 - `_invitations(invitee: User) : many (invitation: Invitation, group: Group, inviter: User)`
 - `_invitation(invitation: Invitation) : optional (invitation: Invitation, group: Group, inviter: User, invitee: User)`
+- `_cover(group: Group) : one (cover: String | null)`
+- `_links(group: Group) : many (link: String, expires: Number)`
+- `_link(token: String) : optional (group: Group, name: String, link: String)`
 
 #### Instances
 
-- `MembershipTracking` — instance of `MembershipTracking` — [Application types](../design/types.md), line 12.
-  - `User` is `Person` — [Application types](../design/types.md), line 13.
+- `MembershipTracking` — instance of `MembershipTracking` — [Application types](../design/types.md), line 15.
+  - `User` is `Person` — [Application types](../design/types.md), line 16.
 
 ### Suggesting
 
@@ -120,10 +157,10 @@ Defined in [Suggesting](../design/concepts/Suggesting.md), line 1.
 
 #### Instances
 
-- `Suggesting` — instance of `Suggesting` — [Application types](../design/types.md), line 18.
-  - `Group` is `MembershipTracking.Group` — [Application types](../design/types.md), line 20.
-  - `Item` is `ActivityCapturing.Activity` — [Application types](../design/types.md), line 21.
-  - `User` is `Person` — [Application types](../design/types.md), line 19.
+- `Suggesting` — instance of `Suggesting` — [Application types](../design/types.md), line 21.
+  - `Group` is `MembershipTracking.Group` — [Application types](../design/types.md), line 23.
+  - `Item` is `ActivityCapturing.Activity` — [Application types](../design/types.md), line 24.
+  - `User` is `Person` — [Application types](../design/types.md), line 22.
 
 ### Wanting
 
@@ -144,9 +181,9 @@ Defined in [Wanting](../design/concepts/Wanting.md), line 1.
 
 #### Instances
 
-- `Wanting` — instance of `Wanting` — [Application types](../design/types.md), line 23.
-  - `Item` is `ActivityCapturing.Activity` — [Application types](../design/types.md), line 25.
-  - `User` is `Person` — [Application types](../design/types.md), line 24.
+- `Wanting` — instance of `Wanting` — [Application types](../design/types.md), line 26.
+  - `Item` is `ActivityCapturing.Activity` — [Application types](../design/types.md), line 28.
+  - `User` is `Person` — [Application types](../design/types.md), line 27.
 
 ## Application types
 
@@ -156,19 +193,20 @@ Concrete types:
 
 ## Computations
 
-- `activityAccessError(user: String, group: String, activity: String) : String | null` — [OnDeck](../design/compositions/OnDeck.md), line 104.
-- `activityPage(group: String, activity: String) : Json` — [OnDeck](../design/compositions/OnDeck.md), line 116.
-- `addAccessError(user: String, group: String, activity: String) : String | null` — [OnDeck](../design/compositions/OnDeck.md), line 106.
-- `captureAccessError(user: String, capture: String) : String | null` — [OnDeck](../design/compositions/OnDeck.md), line 108.
-- `capturePreview(capture: String) : Json` — [OnDeck](../design/compositions/OnDeck.md), line 118.
-- `extractDetails(source: String) : Json` — [OnDeck](../design/compositions/OnDeck.md), line 127.
-- `groupAccessError(user: String, group: String) : String | null` — [OnDeck](../design/compositions/OnDeck.md), line 102.
-- `groupCollection(group: String) : Json` — [OnDeck](../design/compositions/OnDeck.md), line 114.
-- `participantError(group: String, participants: String[], filters: Json) : String | null` — [OnDeck](../design/compositions/OnDeck.md), line 112.
-- `pickAccessError(user: String, group: String, participants: String[], filters: Json) : String | null` — [OnDeck](../design/compositions/OnDeck.md), line 123.
-- `pickFilters(category: String | null, location: String | null, maxCost: Number | null, currency: String | null, from: String | null, until: String | null) : Json` — [OnDeck](../design/compositions/OnDeck.md), line 125.
-- `pickOptions(group: String, participants: String[], filters: Json) : Json` — [OnDeck](../design/compositions/OnDeck.md), line 120.
-- `withdrawalAccessError(user: String, suggestion: String) : String | null` — [OnDeck](../design/compositions/OnDeck.md), line 110.
+- `activityAccessError(user: String, group: String, activity: String) : String | null` — [OnDeck](../design/compositions/OnDeck.md), line 110.
+- `activityPage(group: String, activity: String) : Json` — [OnDeck](../design/compositions/OnDeck.md), line 122.
+- `addAccessError(user: String, group: String, activity: String) : String | null` — [OnDeck](../design/compositions/OnDeck.md), line 112.
+- `captureAccessError(user: String, capture: String) : String | null` — [OnDeck](../design/compositions/OnDeck.md), line 114.
+- `capturePreview(capture: String) : Json` — [OnDeck](../design/compositions/OnDeck.md), line 124.
+- `extractDetails(source: String) : Json` — [OnDeck](../design/compositions/OnDeck.md), line 133.
+- `groupAccessError(user: String, group: String) : String | null` — [OnDeck](../design/compositions/OnDeck.md), line 108.
+- `groupCards(user: String) : Json` — [OnDeck](../design/compositions/OnDeck.md), line 155.
+- `groupCollection(group: String) : Json` — [OnDeck](../design/compositions/OnDeck.md), line 120.
+- `participantError(group: String, participants: String[], filters: Json) : String | null` — [OnDeck](../design/compositions/OnDeck.md), line 118.
+- `pickAccessError(user: String, group: String, participants: String[], filters: Json) : String | null` — [OnDeck](../design/compositions/OnDeck.md), line 129.
+- `pickFilters(category: String | null, location: String | null, maxCost: Number | null, currency: String | null, from: String | null, until: String | null) : Json` — [OnDeck](../design/compositions/OnDeck.md), line 131.
+- `pickOptions(group: String, participants: String[], filters: Json) : Json` — [OnDeck](../design/compositions/OnDeck.md), line 126.
+- `withdrawalAccessError(user: String, suggestion: String) : String | null` — [OnDeck](../design/compositions/OnDeck.md), line 116.
 
 ## Views
 
@@ -199,7 +237,7 @@ Authored path: `OnDeck.MemberMayAccessActivity`.
 ### valid (participants) and (filters) in (group)
 
 Authored path: `OnDeck.ValidParticipants`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 87.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 93.
 
 ```view
 valid (participants) and (filters) in (group) — inputs (group, participants, filters); outputs (); bindings (error)
@@ -216,7 +254,7 @@ _the authored explanation; this section records the generated shape._
 ### activity page (activity) in (group)
 
 Authored path: `OnDeck.ActivityPage`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 66.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 68.
 
 ```former
 Former "activity page (activity) in (group)" — inputs (group, activity); bindings (page); promises exactly one record — forms:
@@ -228,7 +266,7 @@ Former "activity page (activity) in (group)" — inputs (group, activity); bindi
 ### capture preview (capture)
 
 Authored path: `OnDeck.CapturePreview`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 42.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 44.
 
 ```former
 Former "capture preview (capture)" — inputs (capture); bindings (preview); promises exactly one record — forms:
@@ -240,7 +278,7 @@ Former "capture preview (capture)" — inputs (capture); bindings (preview); pro
 ### collection for (group)
 
 Authored path: `OnDeck.GroupCollection`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 64.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 66.
 
 ```former
 Former "collection for (group)" — inputs (group); bindings (activities); promises exactly one record — forms:
@@ -255,12 +293,10 @@ Authored path: `OnDeck.GroupList`.
 - Covered by [OnDeck](../design/compositions/OnDeck.md), line 15.
 
 ```former
-Former "groups for (user)" — inputs (user); bindings (group, name); promises exactly one record — forms:
+Former "groups for (user)" — inputs (user); bindings (groups); promises exactly one record — forms:
   a record of
-    groups: each MembershipTracking._groups (user) has (group, name)
-      form a record of
-        group
-        name
+    where groups is groupCards (user)
+    groups
 ```
 
 ### invitations for (user)
@@ -280,10 +316,24 @@ Former "invitations for (user)" — inputs (user); bindings (invitation, group, 
         name
 ```
 
+### invite links for (group)
+
+Authored path: `OnDeck.InviteLinks`.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 142.
+
+```former
+Former "invite links for (group)" — inputs (group); bindings (link, expires); promises exactly one record — forms:
+  a record of
+    links: each MembershipTracking._links (group) has (expires, link)
+      form a record of
+        expires
+        link
+```
+
 ### options for (participants) in (group) with (filters)
 
 Authored path: `OnDeck.PickOptions`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 89.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 95.
 
 ```former
 Former "options for (participants) in (group) with (filters)" — inputs (group, participants, filters); bindings (result); promises exactly one record — forms:
@@ -359,8 +409,8 @@ then
 ### OnDeck.AddToGroup:allowed
 
 Authored path: `OnDeck.AddToGroup`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 51.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 58.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 53.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 60.
 
 ```reaction
 when RequestBoundary.request (activity, group, path: "/activities/add-to-group", requestId, user)
@@ -375,8 +425,8 @@ then
 ### OnDeck.AddToGroup:allowed#2
 
 Authored path: `OnDeck.AddToGroup`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 51.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 58.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 53.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 60.
 
 ```reaction
 when Suggesting.suggest (group, item: activity, user, suggestion), asked by OnDeck.AddToGroup:allowed
@@ -389,8 +439,8 @@ then
 ### OnDeck.AddToGroup:refused
 
 Authored path: `OnDeck.AddToGroup`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 51.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 58.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 53.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 60.
 
 ```reaction
 when RequestBoundary.request (activity, group, path: "/activities/add-to-group", requestId, user)
@@ -404,7 +454,7 @@ then
 ### OnDeck.CaptureStartedProposesDetails
 
 Authored path: `OnDeck.CaptureStartedProposesDetails`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 40.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 42.
 
 ```reaction
 when ActivityCapturing.start (source, capture)
@@ -419,8 +469,8 @@ then
 ### OnDeck.CompleteActivity:allowed
 
 Authored path: `OnDeck.CompleteActivity`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 73.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 78.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 75.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 80.
 
 ```reaction
 when RequestBoundary.request (activity, group, path: "/activities/complete", requestId, user)
@@ -435,8 +485,8 @@ then
 ### OnDeck.CompleteActivity:allowed#2
 
 Authored path: `OnDeck.CompleteActivity`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 73.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 78.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 75.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 80.
 
 ```reaction
 when Experiencing.complete (item: activity, user, experience), asked by OnDeck.CompleteActivity:allowed
@@ -449,8 +499,8 @@ then
 ### OnDeck.CompleteActivity:refused
 
 Authored path: `OnDeck.CompleteActivity`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 73.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 78.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 75.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 80.
 
 ```reaction
 when RequestBoundary.request (activity, group, path: "/activities/complete", requestId, user)
@@ -464,7 +514,7 @@ then
 ### OnDeck.CompletionClearsWant
 
 Authored path: `OnDeck.CompletionClearsWant`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 83.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 85.
 
 ```reaction
 when Experiencing.complete (item, user)
@@ -477,8 +527,8 @@ then
 ### OnDeck.ConfirmCapture
 
 Authored path: `OnDeck.ConfirmCapture`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 42.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 47.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 44.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 49.
 
 ```reaction
 when RequestBoundary.request (capture, category, cost, currency, dateTime, description, location, name, path: "/captures/confirm", requestId, source, user)
@@ -489,8 +539,8 @@ then
 ### OnDeck.ConfirmCapture#2
 
 Authored path: `OnDeck.ConfirmCapture`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 42.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 47.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 44.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 49.
 
 ```reaction
 when ActivityCapturing.confirm (capture, category, cost, currency, dateTime, description, location, name, source, user, activity), asked by OnDeck.ConfirmCapture
@@ -526,6 +576,32 @@ then
   RequestBoundary.respond (group, requestId)
 ```
 
+### OnDeck.CreateInviteLink
+
+Authored path: `OnDeck.CreateInviteLink`.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 142.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 148.
+
+```reaction
+when RequestBoundary.request (group, path: "/groups/create-link", requestId, user)
+then
+  MembershipTracking.createLink (group, user)
+```
+
+### OnDeck.CreateInviteLink#2
+
+Authored path: `OnDeck.CreateInviteLink`.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 142.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 148.
+
+```reaction
+when MembershipTracking.createLink (group, user, expires, link, token), asked by OnDeck.CreateInviteLink
+where
+  earlier, RequestBoundary.request (group, path: "/groups/create-link", requestId, user)
+then
+  RequestBoundary.respond (expires, link, requestId, token)
+```
+
 ### OnDeck.DeclineInvitation
 
 Authored path: `OnDeck.DeclineInvitation`.
@@ -552,11 +628,37 @@ then
   RequestBoundary.respond (requestId, success: true)
 ```
 
+### OnDeck.DeleteGroup
+
+Authored path: `OnDeck.DeleteGroup`.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 164.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 168.
+
+```reaction
+when RequestBoundary.request (group, path: "/groups/delete", requestId, user)
+then
+  MembershipTracking.deleteGroup (group, user)
+```
+
+### OnDeck.DeleteGroup#2
+
+Authored path: `OnDeck.DeleteGroup`.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 164.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 168.
+
+```reaction
+when MembershipTracking.deleteGroup (group, user), asked by OnDeck.DeleteGroup
+where
+  earlier, RequestBoundary.request (group, path: "/groups/delete", requestId, user)
+then
+  RequestBoundary.respond (requestId, success: true)
+```
+
 ### OnDeck.DiscardCapture
 
 Authored path: `OnDeck.DiscardCapture`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 42.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 48.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 44.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 50.
 
 ```reaction
 when RequestBoundary.request (capture, path: "/captures/discard", requestId, user)
@@ -567,8 +669,8 @@ then
 ### OnDeck.DiscardCapture#2
 
 Authored path: `OnDeck.DiscardCapture`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 42.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 48.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 44.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 50.
 
 ```reaction
 when ActivityCapturing.discard (capture, user), asked by OnDeck.DiscardCapture
@@ -581,8 +683,8 @@ then
 ### OnDeck.GetActivity:allowed
 
 Authored path: `OnDeck.GetActivity`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 66.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 70.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 68.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 72.
 
 ```reaction
 when RequestBoundary.request (activity, group, path: "/activities/get", requestId, user)
@@ -597,8 +699,8 @@ then
 ### OnDeck.GetActivity:refused
 
 Authored path: `OnDeck.GetActivity`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 66.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 70.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 68.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 72.
 
 ```reaction
 when RequestBoundary.request (activity, group, path: "/activities/get", requestId, user)
@@ -612,8 +714,8 @@ then
 ### OnDeck.GetCapture:allowed
 
 Authored path: `OnDeck.GetCapture`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 42.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 46.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 44.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 48.
 
 ```reaction
 when RequestBoundary.request (capture, path: "/captures/get", requestId, user)
@@ -627,8 +729,8 @@ then
 ### OnDeck.GetCapture:refused
 
 Authored path: `OnDeck.GetCapture`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 42.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 46.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 44.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 48.
 
 ```reaction
 when RequestBoundary.request (capture, path: "/captures/get", requestId, user)
@@ -715,6 +817,32 @@ then
   RequestBoundary.respond (error, requestId)
 ```
 
+### OnDeck.JoinInviteLink
+
+Authored path: `OnDeck.JoinInviteLink`.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 142.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 151.
+
+```reaction
+when RequestBoundary.request (path: "/invitations/join-link", requestId, token, user)
+then
+  MembershipTracking.joinLink (token, user)
+```
+
+### OnDeck.JoinInviteLink#2
+
+Authored path: `OnDeck.JoinInviteLink`.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 142.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 151.
+
+```reaction
+when MembershipTracking.joinLink (token, user, group), asked by OnDeck.JoinInviteLink
+where
+  earlier, RequestBoundary.request (path: "/invitations/join-link", requestId, token, user)
+then
+  RequestBoundary.respond (group, requestId)
+```
+
 ### OnDeck.LeaveGroup:allowed
 
 Authored path: `OnDeck.LeaveGroup`.
@@ -763,8 +891,8 @@ then
 ### OnDeck.ListActivities:allowed
 
 Authored path: `OnDeck.ListActivities`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 64.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 69.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 66.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 71.
 
 ```reaction
 when RequestBoundary.request (group, path: "/activities/list", requestId, user)
@@ -779,8 +907,8 @@ then
 ### OnDeck.ListActivities:refused
 
 Authored path: `OnDeck.ListActivities`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 64.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 69.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 66.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 71.
 
 ```reaction
 when RequestBoundary.request (group, path: "/activities/list", requestId, user)
@@ -815,11 +943,42 @@ then
   RequestBoundary.respond (inbox: former "invitations for (user)" with (user), requestId)
 ```
 
+### OnDeck.ListInviteLinks:allowed
+
+Authored path: `OnDeck.ListInviteLinks`.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 142.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 149.
+
+```reaction
+when RequestBoundary.request (group, path: "/groups/links", requestId, user)
+where
+  error is groupAccessError (group, user)
+  error is among [null]
+  view "(user) may access (group)" with (group, user)
+then
+  RequestBoundary.respond (book: former "invite links for (group)" with (group), requestId)
+```
+
+### OnDeck.ListInviteLinks:refused
+
+Authored path: `OnDeck.ListInviteLinks`.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 142.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 149.
+
+```reaction
+when RequestBoundary.request (group, path: "/groups/links", requestId, user)
+where
+  error is groupAccessError (group, user)
+  error is among ["NO_SUCH_GROUP", "NOT_A_MEMBER", "NO_SUCH_ACTIVITY", "ACTIVITY_NOT_IN_GROUP", "NO_SUCH_CAPTURE", "NOT_CAPTURE_OWNER", "NO_SUCH_SUGGESTION", "NO_PARTICIPANTS", "INVALID_PARTICIPANTS", "INVALID_FILTERS"]
+then
+  RequestBoundary.respond (error, requestId)
+```
+
 ### OnDeck.PickForNow:allowed
 
 Authored path: `OnDeck.PickForNow`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 87.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 94.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 93.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 100.
 
 ```reaction
 when RequestBoundary.request (category, currency, from, group, location, maxCost, participants, path: "/pick/options", requestId, until, user)
@@ -835,8 +994,8 @@ then
 ### OnDeck.PickForNow:refused
 
 Authored path: `OnDeck.PickForNow`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 87.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 94.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 93.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 100.
 
 ```reaction
 when RequestBoundary.request (category, currency, from, group, location, maxCost, participants, path: "/pick/options", requestId, until, user)
@@ -851,7 +1010,7 @@ then
 ### OnDeck.RepeatNoClearsWant
 
 Authored path: `OnDeck.RepeatNoClearsWant`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 83.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 89.
 
 ```reaction
 when Experiencing.setRepeatPreference (item, preference: "NO", user)
@@ -864,7 +1023,7 @@ then
 ### OnDeck.RepeatYesCreatesWant
 
 Authored path: `OnDeck.RepeatYesCreatesWant`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 83.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 87.
 
 ```reaction
 when Experiencing.setRepeatPreference (item, preference: "YES", user)
@@ -874,11 +1033,63 @@ then
   Wanting.want (item, user)
 ```
 
+### OnDeck.RevokeInviteLink
+
+Authored path: `OnDeck.RevokeInviteLink`.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 142.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 150.
+
+```reaction
+when RequestBoundary.request (group, link, path: "/groups/revoke-link", requestId, user)
+then
+  MembershipTracking.revokeLink (group, link, user)
+```
+
+### OnDeck.RevokeInviteLink#2
+
+Authored path: `OnDeck.RevokeInviteLink`.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 142.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 150.
+
+```reaction
+when MembershipTracking.revokeLink (group, link, user), asked by OnDeck.RevokeInviteLink
+where
+  earlier, RequestBoundary.request (group, link, path: "/groups/revoke-link", requestId, user)
+then
+  RequestBoundary.respond (requestId, success: true)
+```
+
+### OnDeck.SaveGroupOrder
+
+Authored path: `OnDeck.SaveGroupOrder`.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 140.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 147.
+
+```reaction
+when RequestBoundary.request (order, path: "/groups/order", requestId, user)
+then
+  GroupOrdering.save (order, user)
+```
+
+### OnDeck.SaveGroupOrder#2
+
+Authored path: `OnDeck.SaveGroupOrder`.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 140.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 147.
+
+```reaction
+when GroupOrdering.save (order, user), asked by OnDeck.SaveGroupOrder
+where
+  earlier, RequestBoundary.request (order, path: "/groups/order", requestId, user)
+then
+  RequestBoundary.respond (requestId, success: true)
+```
+
 ### OnDeck.SetRepeatPreference:allowed
 
 Authored path: `OnDeck.SetRepeatPreference`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 73.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 79.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 75.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 81.
 
 ```reaction
 when RequestBoundary.request (activity, group, path: "/activities/repeat-preference", preference, requestId, user)
@@ -893,8 +1104,8 @@ then
 ### OnDeck.SetRepeatPreference:allowed#2
 
 Authored path: `OnDeck.SetRepeatPreference`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 73.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 79.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 75.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 81.
 
 ```reaction
 when Experiencing.setRepeatPreference (item: activity, preference, user), asked by OnDeck.SetRepeatPreference:allowed
@@ -907,8 +1118,8 @@ then
 ### OnDeck.SetRepeatPreference:refused
 
 Authored path: `OnDeck.SetRepeatPreference`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 73.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 79.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 75.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 81.
 
 ```reaction
 when RequestBoundary.request (activity, group, path: "/activities/repeat-preference", preference, requestId, user)
@@ -923,7 +1134,7 @@ then
 
 Authored path: `OnDeck.StartCapture`.
 - Covered by [OnDeck](../design/compositions/OnDeck.md), line 40.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 45.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 47.
 
 ```reaction
 when RequestBoundary.request (path: "/captures/start", requestId, source, user)
@@ -935,7 +1146,7 @@ then
 
 Authored path: `OnDeck.StartCapture`.
 - Covered by [OnDeck](../design/compositions/OnDeck.md), line 40.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 45.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 47.
 
 ```reaction
 when ActivityCapturing.start (source, user, capture), asked by OnDeck.StartCapture
@@ -948,7 +1159,7 @@ then
 ### OnDeck.SuggestionCreatesWant
 
 Authored path: `OnDeck.SuggestionCreatesWant`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 53.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 55.
 
 ```reaction
 when Suggesting.suggest (item, user)
@@ -961,8 +1172,8 @@ then
 ### OnDeck.UndoCompletion:allowed
 
 Authored path: `OnDeck.UndoCompletion`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 73.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 80.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 75.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 82.
 
 ```reaction
 when RequestBoundary.request (activity, group, path: "/activities/undo-completion", requestId, user)
@@ -977,8 +1188,8 @@ then
 ### OnDeck.UndoCompletion:allowed#2
 
 Authored path: `OnDeck.UndoCompletion`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 73.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 80.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 75.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 82.
 
 ```reaction
 when Experiencing.undoCompletion (item: activity, user), asked by OnDeck.UndoCompletion:allowed
@@ -991,8 +1202,8 @@ then
 ### OnDeck.UndoCompletion:refused
 
 Authored path: `OnDeck.UndoCompletion`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 73.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 80.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 75.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 82.
 
 ```reaction
 when RequestBoundary.request (activity, group, path: "/activities/undo-completion", requestId, user)
@@ -1006,8 +1217,8 @@ then
 ### OnDeck.UnwantActivity:allowed
 
 Authored path: `OnDeck.UnwantActivity`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 73.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 77.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 75.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 79.
 
 ```reaction
 when RequestBoundary.request (activity, group, path: "/activities/unwant", requestId, user)
@@ -1022,8 +1233,8 @@ then
 ### OnDeck.UnwantActivity:allowed#2
 
 Authored path: `OnDeck.UnwantActivity`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 73.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 77.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 75.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 79.
 
 ```reaction
 when Wanting.unwant (item: activity, user), asked by OnDeck.UnwantActivity:allowed
@@ -1036,8 +1247,8 @@ then
 ### OnDeck.UnwantActivity:refused
 
 Authored path: `OnDeck.UnwantActivity`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 73.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 77.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 75.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 79.
 
 ```reaction
 when RequestBoundary.request (activity, group, path: "/activities/unwant", requestId, user)
@@ -1048,11 +1259,37 @@ then
   RequestBoundary.respond (error, requestId)
 ```
 
+### OnDeck.UpdateGroup
+
+Authored path: `OnDeck.UpdateGroup`.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 162.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 167.
+
+```reaction
+when RequestBoundary.request (cover, group, name, path: "/groups/update", requestId, user)
+then
+  MembershipTracking.updateGroup (cover, group, name, user)
+```
+
+### OnDeck.UpdateGroup#2
+
+Authored path: `OnDeck.UpdateGroup`.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 162.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 167.
+
+```reaction
+when MembershipTracking.updateGroup (cover, group, name, user), asked by OnDeck.UpdateGroup
+where
+  earlier, RequestBoundary.request (cover, group, name, path: "/groups/update", requestId, user)
+then
+  RequestBoundary.respond (requestId, success: true)
+```
+
 ### OnDeck.WantActivity:allowed
 
 Authored path: `OnDeck.WantActivity`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 73.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 76.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 75.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 78.
 
 ```reaction
 when RequestBoundary.request (activity, group, path: "/activities/want", requestId, user)
@@ -1067,8 +1304,8 @@ then
 ### OnDeck.WantActivity:allowed#2
 
 Authored path: `OnDeck.WantActivity`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 73.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 76.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 75.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 78.
 
 ```reaction
 when Wanting.want (item: activity, user), asked by OnDeck.WantActivity:allowed
@@ -1081,8 +1318,8 @@ then
 ### OnDeck.WantActivity:refused
 
 Authored path: `OnDeck.WantActivity`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 73.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 76.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 75.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 78.
 
 ```reaction
 when RequestBoundary.request (activity, group, path: "/activities/want", requestId, user)
@@ -1096,8 +1333,8 @@ then
 ### OnDeck.WithdrawSuggestion:allowed
 
 Authored path: `OnDeck.WithdrawSuggestion`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 55.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 59.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 57.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 61.
 
 ```reaction
 when RequestBoundary.request (path: "/activities/withdraw", requestId, suggestion, user)
@@ -1111,8 +1348,8 @@ then
 ### OnDeck.WithdrawSuggestion:allowed#2
 
 Authored path: `OnDeck.WithdrawSuggestion`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 55.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 59.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 57.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 61.
 
 ```reaction
 when Suggesting.withdraw (suggestion, user), asked by OnDeck.WithdrawSuggestion:allowed
@@ -1125,8 +1362,8 @@ then
 ### OnDeck.WithdrawSuggestion:refused
 
 Authored path: `OnDeck.WithdrawSuggestion`.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 55.
-- Covered by [OnDeck](../design/compositions/OnDeck.md), line 59.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 57.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 61.
 
 ```reaction
 when RequestBoundary.request (path: "/activities/withdraw", requestId, suggestion, user)
@@ -1158,11 +1395,18 @@ not listed here have no explicit input contract.
 - `/captures/get` — requires `user`, `capture`
 - `/captures/start` — requires `user`, `source`
 - `/groups/create` — requires `user`, `name`
+- `/groups/create-link` — requires `user`, `group`
+- `/groups/delete` — requires `user`, `group`
 - `/groups/get` — requires `user`, `group`
 - `/groups/invite` — requires `user`, `group`, `invitee`
 - `/groups/leave` — requires `user`, `group`
+- `/groups/links` — requires `user`, `group`
 - `/groups/list` — requires `user`
+- `/groups/order` — requires `user`, `order`
+- `/groups/revoke-link` — requires `user`, `group`, `link`
+- `/groups/update` — requires `user`, `group`, `name`; fills `cover` with null when absent
 - `/invitations/accept` — requires `user`, `invitation`
 - `/invitations/decline` — requires `user`, `invitation`
+- `/invitations/join-link` — requires `user`, `token`
 - `/invitations/list` — requires `user`
 - `/pick/options` — requires `user`, `group`, `participants`; fills `category` with null when absent; fills `currency` with null when absent; fills `from` with null when absent; fills `location` with null when absent; fills `maxCost` with null when absent; fills `until` with null when absent

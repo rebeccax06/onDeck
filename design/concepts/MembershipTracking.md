@@ -20,7 +20,10 @@ external User
 ```state
 a set of Groups with
   a name String
+  an optional cover String
   a members set of Users
+
+Rule: Each Group also has invite links with a token hash, link identity, expiry Number.
 
 a set of Invitations with
   a group Group
@@ -96,6 +99,69 @@ leave(user: User, group: Group) : returns ()
   then
     remove user from its members
     returns
+
+updateGroup(user: User, group: Group, name: String, cover: String | null) : returns ()
+  where group does not exist
+  then
+    refuses NO_SUCH_GROUP "There is no such group."
+  where user is not a current member
+  then
+    refuses NOT_A_MEMBER "Only members can edit a group."
+  where name is blank after trimming
+  then
+    refuses INVALID_NAME "Give the group a name."
+  where cover is neither null nor a valid PNG, JPEG, or WebP data URL of at most 350000 characters
+  then
+    refuses INVALID_COVER "Choose a valid group picture."
+  where user is a member and details are valid
+  then
+    save the trimmed name and cover, removing the cover when null
+    returns
+
+deleteGroup(user: User, group: Group) : returns ()
+  where group does not exist
+  then
+    refuses NO_SUCH_GROUP "There is no such group."
+  where user is not a current member
+  then
+    refuses NOT_A_MEMBER "Only members can delete a group."
+  where user is a current member
+  then
+    delete the group with its membership, invitations, and links
+    returns
+
+createLink(user: User, group: Group) : returns (link: String, token: String, expires: Number)
+  where group does not exist
+  then
+    refuses NO_SUCH_GROUP "There is no such group."
+  where user is not a member
+  then
+    refuses NOT_A_MEMBER "Only members can invite someone."
+  where user is a member
+  then
+    create a random link, storing only its token hash and expiry seven days from now
+    returns link, token, expires
+
+revokeLink(user: User, group: Group, link: String) : returns ()
+  where group does not exist
+  then
+    refuses NO_SUCH_GROUP "There is no such group."
+  where user is not a member
+  then
+    refuses NOT_A_MEMBER "Only members can revoke invitations."
+  where user is a member
+  then
+    remove the link if present
+    returns
+
+joinLink(user: User, token: String) : returns (group: Group)
+  where token has no unexpired link
+  then
+    refuses INVALID_LINK "This invitation has expired or was revoked."
+  where link is valid and unrestricted
+  then
+    add user to the group's members
+    returns group
 ```
 
 ## Queries
@@ -113,4 +179,11 @@ _invitations(invitee: User) : many (invitation: Invitation, group: Group, invite
   Answers pending invitations for invitee ordered by invitation identity; no rows when none.
 _invitation(invitation: Invitation) : optional (invitation: Invitation, group: Group, inviter: User, invitee: User)
   Answers the invitation; no row when unknown.
+
+_cover(group: Group) : one (cover: String | null)
+  Answers the group's picture data URL, or null if absent or unknown.
+_links(group: Group) : many (link: String, expires: Number)
+  Answers unexpired link summaries, without tokens, ordered by expiry then identity.
+_link(token: String) : optional (group: Group, name: String, link: String)
+  Answers minimal invitation metadata for a valid token; no row for expired or revoked tokens.
 ```

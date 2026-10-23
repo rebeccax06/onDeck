@@ -9,6 +9,9 @@ concrete Person
 ```
 
 ```instances
+instantiate GroupOrdering with
+  User is Person
+
 instantiate MembershipTracking with
   User is Person
 
