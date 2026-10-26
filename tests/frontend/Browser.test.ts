@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assembleApplication } from "../../src/assembly.ts";
+import { createDiscoveryHandler } from "../../src/discovery.ts";
 import { bearerAuthenticator, createApiHandler } from "../../src/server.ts";
 import { createLiveHub, type LiveSocketData } from "../../src/live.ts";
 import { createSharingHandler } from "../../src/sharing.ts";
@@ -37,6 +38,14 @@ browserTest(
     const hub = createLiveHub(authenticate, origins);
     const api = createApiHandler(app, authenticate, {
       changed: hub.changed,
+    });
+    let discoveryCalls = 0;
+    let releaseDiscovery!: () => void;
+    const discoveryGate = new Promise<void>(resolve => { releaseDiscovery = resolve; });
+    const discovery = createDiscoveryHandler(app, authenticate, async (_prompt, candidates) => {
+      discoveryCalls++;
+      await discoveryGate;
+      return { ranking: candidates.map(row => ({ activity: row.activity, reason: "Could suit a relaxed mood." })) };
     });
     const inFlight = new Set<Promise<Response>>();
     let rejectNextOrder = false;
@@ -82,6 +91,7 @@ browserTest(
       fetch: (request) => new Response("Not found", { status: 404 }),
       routes: {
         "/api/*": trackedApi,
+        "/discovery/options": discovery,
         "/live/ticket": hub.ticket,
         "/live": (request: Request, server: Bun.Server<LiveSocketData>) =>
           hub.upgrade(request, server),
@@ -577,13 +587,36 @@ browserTest(
         origin,
         permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"],
       });
-      await alice.click("Copy invite link");
+      await alice.click("Create and copy link");
       await alice.until(
-        "document.querySelector('.notices').textContent.includes('Link copied.')",
+        "document.querySelector('.success-toast')?.textContent.includes('Link copied.')",
       );
       expect(
         await alice.evaluate("!document.querySelector('.invite-link-field')"),
       ).toBe(true);
+      expect(await alice.evaluate("document.querySelector('.invite-list strong').textContent")).toBe("Invite link 1");
+      expect(await alice.evaluate("document.querySelector('.invite-list li').textContent.includes('Expires') && document.querySelector('.invite-list li').textContent.includes('Just copied')")).toBe(true);
+      await alice.click("Copy link again");
+      await alice.until("!document.querySelector('fieldset').disabled");
+      expect(await alice.evaluate("document.querySelectorAll('.invite-list li').length")).toBe(1);
+      const originalInvite = await alice.evaluate("navigator.clipboard.readText()");
+      await alice.evaluate("document.querySelector('.invite-list li button[aria-label^=Rename]').click()");
+      await alice.until("document.activeElement.id==='invite-link-name'");
+      await alice.input('#invite-link-name', "Friends from work");
+      await alice.click("Save name");
+      await alice.until("document.querySelector('.invite-list strong')?.textContent==='Friends from work' && !document.querySelector('fieldset').disabled");
+      await alice.click("Copy link again");
+      await alice.until("!document.querySelector('fieldset').disabled");
+      expect(await alice.evaluate("navigator.clipboard.readText()")).toBe(originalInvite);
+      const extraID = (await alice.evaluate("document.querySelector('.invite-list li').dataset.link") as string).slice(-8);
+      await alice.click("Create new link");
+      await alice.until("document.querySelectorAll('.invite-list li').length===2 && !document.querySelector('fieldset').disabled");
+      expect(await alice.evaluate("navigator.clipboard.readText()")).not.toBe(originalInvite);
+      await alice.evaluate(`[...document.querySelectorAll('.invite-list li')].find(row=>row.textContent.includes(${JSON.stringify(extraID)})).querySelector('.danger-text').click()`);
+      await alice.until("document.querySelector('.confirm-dialog').open");
+      await alice.click("Revoke invitation");
+      await alice.until("document.querySelectorAll('.invite-list li').length===1 && !document.querySelector('fieldset').disabled");
+      expect(await alice.evaluate("document.querySelector('.invite-panel .primary').textContent==='Copy link again'")).toBe(true);
       const invite = (await alice.evaluate(
         "navigator.clipboard.readText()",
       )) as string;
@@ -707,6 +740,37 @@ browserTest(
           "!document.querySelector('.activity-detail-danger')",
         ),
       ).toBe(true);
+      expect(await bob.evaluate("!!document.querySelector('.activity-empty-details') && !document.querySelector('.activity-facts')")).toBe(true);
+      await bob.click("Edit activity");
+      expect(await bob.evaluate("!!document.querySelector('#activity-edit-title') && document.activeElement.id==='activity-edit-name' && !document.querySelector('.interest-panel') && !document.querySelector('.activity-information') && !document.querySelector('.activity-group-interest')")).toBe(true);
+      if (process.env.ONDECK_SCREENSHOT) {
+        const shot = await bob.command("Page.captureScreenshot", { format: "png" });
+        await Bun.write(process.env.ONDECK_SCREENSHOT.replace(/\.png$/, "-activity-edit.png"), Buffer.from(shot.data, "base64"));
+      }
+      await bob.input('.activity-details textarea', "Discard this draft");
+      await bob.click("Cancel");
+      await bob.until("!!document.querySelector('.interest-panel') && !document.querySelector('.activity-edit-form')");
+      expect(await bob.evaluate("document.querySelector('.activity-description')?.textContent !== 'Discard this draft'")).toBe(true);
+      await bob.click("Edit activity");
+      await bob.input('.activity-details textarea', "Updated by another member");
+      expect(await bob.evaluate("document.querySelector('.activity-edit-form input[type=\"datetime-local\"]').step==='1' && document.querySelector('#activity-edit-timezone').textContent.includes(Intl.DateTimeFormat().resolvedOptions().timeZone)")).toBe(true);
+      await bob.input('.activity-edit-form input[type="datetime-local"]', "2026-11-05T18:45:30");
+      await bob.click("Save changes");
+      await bob.until("!document.querySelector('.activity-details form') && document.querySelector('.activity-description')?.textContent==='Updated by another member'");
+      expect(await bob.evaluate("document.querySelector('.suggested-by')?.textContent.includes('Alice')")).toBe(true);
+      await bob.until("document.querySelector('.success-toast')?.textContent.includes('Activity updated.')");
+      expect(await bob.evaluate("!document.querySelector('.notices')?.textContent.includes('Activity updated.') && getComputedStyle(document.querySelector('.toast-region')).position==='fixed'")).toBe(true);
+      await bob.until("!document.querySelector('.success-toast')");
+      const [{ group: editedGroup }] = await app.concepts.MembershipTracking._groups({ user: "bob" });
+      const [{ item: editedItem }] = await app.concepts.Suggesting._forGroup({ group: editedGroup! });
+      const [beforeDate] = await app.concepts.ActivityCapturing._get({ activity: editedItem! });
+      expect(beforeDate?.dateTime).toBe(await bob.evaluate("new Date('2026-11-05T18:45:30').toISOString()"));
+      await bob.click("Edit activity");
+      await bob.until("!!document.querySelector('.activity-edit-form')");
+      await bob.click("Save changes");
+      await bob.until("!document.querySelector('.activity-edit-form') && !document.querySelector('fieldset').disabled");
+      const [afterDate] = await app.concepts.ActivityCapturing._get({ activity: editedItem! });
+      expect(afterDate?.dateTime).toBe(beforeDate?.dateTime);
       if (process.env.ONDECK_SCREENSHOT) {
         const result = await bob.command("Page.captureScreenshot", {
           format: "png",
@@ -738,6 +802,29 @@ browserTest(
       expect(
         await bob.evaluate("!document.querySelector('.activity-delete')"),
       ).toBe(true);
+      await bob.click("Pick for Now");
+      await bob.input('textarea[placeholder="We want to do something chill"]', "Something chill");
+      await bob.click("Find options →");
+      await bob.until("document.querySelector('.discovery-loading')?.textContent.includes('Gemini is finding ideas')");
+      expect(await bob.evaluate("document.querySelector('.pick-form').getAttribute('aria-busy')==='true' && document.querySelector('.pick-form .primary').disabled && document.querySelector('.pick-form .primary').textContent.includes('Finding ideas')")).toBe(true);
+      expect(releaseDiscovery).toBeDefined();
+      releaseDiscovery!();
+      await bob.until("!document.querySelector('.discovery-loading') && document.querySelector('main')?.textContent.includes('Could suit a relaxed mood.') && !document.querySelector('fieldset').disabled");
+      expect(discoveryCalls).toBe(1);
+      expect(await bob.evaluate("!!document.querySelector('.pick-result-card .pick-result-reason') && !!document.querySelector('.pick-result-interest')")).toBe(true);
+      await bob.evaluate("document.querySelector('.pick-result-card').scrollIntoView({block:'center'})");
+      if (process.env.ONDECK_SCREENSHOT) {
+        const shot = await bob.command("Page.captureScreenshot", { format: "png" });
+        await Bun.write(process.env.ONDECK_SCREENSHOT.replace(/\.png$/, "-discovery-results.png"), Buffer.from(shot.data, "base64"));
+      }
+      await bob.command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+      await bob.evaluate("document.querySelector('.pick-result-card').scrollIntoView({block:'center'})");
+      expect(await bob.evaluate("document.documentElement.scrollWidth <= window.innerWidth && getComputedStyle(document.querySelector('.pick-results')).gridTemplateColumns.split(' ').length===1")).toBe(true);
+      if (process.env.ONDECK_SCREENSHOT) {
+        const shot = await bob.command("Page.captureScreenshot", { format: "png" });
+        await Bun.write(process.env.ONDECK_SCREENSHOT.replace(/\.png$/, "-discovery-mobile.png"), Buffer.from(shot.data, "base64"));
+      }
+      await bob.evaluate("window.dispatchEvent(new Event('focus'))");
       await alice.click("On Deck");
       await alice.until(
         "document.querySelector('.activity-footer')?.textContent.includes('1 have been')",
@@ -972,6 +1059,7 @@ browserTest(
       await alice.until(
         "document.querySelectorAll('.activity-card').length===0 && !document.querySelector('fieldset').disabled",
       );
+      expect(discoveryCalls).toBe(1);
       console.info("Browser: recover partial sharing after a selected group disappears");
       const call = async (path: string, input: Record<string, unknown>) => {
         const response = await fetch(new URL(`/api${path}`, backend.url), {

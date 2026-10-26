@@ -2,6 +2,7 @@ import type { Collection, Db } from "mongodb";
 
 export class EmptySource extends Error {}
 export class NoSuchCapture extends Error {}
+export class NoSuchActivity extends Error {}
 export class InvalidDetails extends Error {}
 export class NotCaptureOwner extends Error {}
 
@@ -136,10 +137,22 @@ export class ActivityCapturingConcept {
     const activity = this.freshID();
     const result = await this.records.updateOne({ _id: capture, kind: "capture", owner: user }, {
       $set: { kind: "activity", activity, details },
-      $unset: { owner: "", source: "", proposal: "" },
+      $unset: { source: "", proposal: "" },
     });
     if (result.matchedCount === 0) throw new NoSuchCapture("There is no such capture.");
     return { activity };
+  }
+
+  async update({ activity, ...fields }: { activity: string; name: string; source?: string | null;
+    description?: string | null; location?: string | null; category?: string | null;
+    cost?: number | null; currency?: string | null; dateTime?: string | null;
+  }): Promise<Record<string, never>> {
+    await this.ready;
+    if (!await this.records.findOne({ activity, kind: "activity" })) throw new NoSuchActivity("There is no such activity.");
+    const details = checkedDetails(fields);
+    const result = await this.records.updateOne({ activity, kind: "activity" }, { $set: { details } });
+    if (!result.matchedCount) throw new NoSuchActivity("There is no such activity.");
+    return {};
   }
 
   async discard({ user, capture }: { user: string; capture: string }): Promise<Record<string, never>> {
@@ -165,6 +178,12 @@ export class ActivityCapturingConcept {
     await this.ready;
     const pending = await this.records.findOne({ _id: capture, kind: "capture" });
     return pending?.proposal ? [pending.proposal] : [];
+  }
+
+  async _owner({ activity }: { activity: string }): Promise<Array<{ owner: string }>> {
+    await this.ready;
+    const saved = await this.records.findOne({ activity, kind: "activity" });
+    return saved?.owner ? [{ owner: saved.owner }] : [];
   }
 
   async _get({ activity }: { activity: string }): Promise<Array<{

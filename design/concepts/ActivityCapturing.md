@@ -33,6 +33,7 @@ a set of Proposed Captures with
   an optional proposedDateTime DateTime
 
 a set of Activities with
+  an owner User
   a name String
   an optional source String
   an optional description String
@@ -92,11 +93,24 @@ confirm(user: User, capture: Capture, name: String, source?: String, description
     refuses INVALID_DETAILS "Provide a name, valid dates, and a nonnegative cost with its currency when known."
   where user owns capture and name is nonblank after trimming, any supplied dateTime is valid, and cost and currency satisfy their state rules
   then
-    add a new activity with the supplied fields, trimming name
+    add a new activity owned by user with the supplied fields, trimming name
     leave each optional activity field absent when its input is omitted
     remove capture from Proposed Captures if present
     remove capture
     returns activity
+
+update(activity: Activity, name: String, source?: String, description?: String, location?: String, category?: String, cost?: Number, currency?: String, dateTime?: DateTime) : returns ()
+  where activity does not exist
+  then
+    refuses NO_SUCH_ACTIVITY "There is no such activity."
+  where activity exists and supplied fields violate the activity state rules
+  then
+    refuses INVALID_DETAILS "Provide valid activity details."
+  where activity exists and supplied fields satisfy the activity state rules
+  then
+    replace saved details with supplied fields, trimming name and clearing omitted optional fields
+    retain activity identity and owner
+    returns
 
 discard(user: User, capture: Capture) : returns ()
   where capture is not in Captures
@@ -121,4 +135,6 @@ _proposal(capture: Capture) : optional (name: String, source?: String, descripti
   Answers proposedName as name and the other proposed fields under their corresponding input names, omitting absent optional fields; no row for an unknown capture or one without a proposal.
 _get(activity: Activity) : optional (activity: Activity, name: String, source?: String, description?: String, location?: String, category?: String, cost?: Number, currency?: String, dateTime?: DateTime)
   Answers saved fields, omitting absent optional fields; no row for an unknown activity.
+_owner(activity: Activity) : optional (owner: User)
+  Answers the creator of a saved activity; no row if unknown or a legacy record has no retained owner.
 ```

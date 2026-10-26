@@ -50,8 +50,15 @@ export function applicationReads(instances: Instances) {
     const row = (await suggesting._get({ suggestion }))[0];
     return row ? groupError(user, row.group) : "NO_SUCH_SUGGESTION";
   }
-  async function addError(user: string, group: string, activity: string): Promise<GroupAccessError | "NO_SUCH_ACTIVITY" | null> {
-    return await groupError(user, group) || ((await capturing._get({ activity })).length ? null : "NO_SUCH_ACTIVITY");
+  async function addError(user: string, group: string, activity: string): Promise<GroupAccessError | "NO_SUCH_ACTIVITY" | "ACTIVITY_NOT_ACCESSIBLE" | null> {
+    const error = await groupError(user, group);
+    if (error) return error;
+    if (!(await capturing._get({ activity })).length) return "NO_SUCH_ACTIVITY";
+    if ((await capturing._owner({ activity }))[0]?.owner === user) return null;
+    for (const { group: source } of await membership._groups({ user })) {
+      if ((await suggesting._contains({ group: source, item: activity })).suggested) return null;
+    }
+    return "ACTIVITY_NOT_ACCESSIBLE";
   }
   async function statuses(group: string, item: string, participants?: string[]) {
     const users = participants ?? (await membership._members({ group })).map(({ user }) => user);
@@ -98,12 +105,18 @@ export function applicationReads(instances: Instances) {
       if (filters[key] != null) Object.assign(applied, { [key]: filters[key] });
     }
     const rows = (await collection(group, selected)).filter((row) =>
-      (!applied.category || normalize(row.category) === normalize(applied.category)) &&
-      (!applied.location || !!normalize(row.location)?.includes(normalize(applied.location)!)) &&
-      (applied.maxCost == null || (row.cost != null && row.cost <= applied.maxCost && row.currency === applied.currency)) &&
-      (!applied.from || !!row.dateTime && Date.parse(row.dateTime) >= Date.parse(applied.from)) &&
-      (!applied.until || !!row.dateTime && Date.parse(row.dateTime) <= Date.parse(applied.until))
+      (!applied.category || !normalize(row.category) || normalize(row.category) === normalize(applied.category)) &&
+      (!applied.location || !normalize(row.location) || !!normalize(row.location)?.includes(normalize(applied.location)!)) &&
+      (applied.maxCost == null || row.cost == null || (row.cost <= applied.maxCost && row.currency === applied.currency)) &&
+      (!applied.from || !row.dateTime || Date.parse(row.dateTime) >= Date.parse(applied.from)) &&
+      (!applied.until || !row.dateTime || Date.parse(row.dateTime) <= Date.parse(applied.until))
     ).map((row) => ({ ...row,
+      unknownFilters: [
+        applied.category && !normalize(row.category) ? "Category" : null,
+        applied.location && !normalize(row.location) ? "Location" : null,
+        applied.maxCost != null && row.cost == null ? "Cost" : null,
+        (applied.from || applied.until) && !row.dateTime ? "Date" : null,
+      ].filter((label): label is string => label !== null),
       wantedCount: row.members.filter((member) => member.wanted).length,
       wantedWithoutCompletionCount: row.members.filter((member) => member.wanted && !member.completed).length,
       completedCount: row.members.filter((member) => member.completed).length,

@@ -95,6 +95,25 @@ export type OnDeckWire = {
     };
     error: { error: AppWideError | "INVALID_INPUT" | "NOT_WANTED" | string };
   };
+  "/activities/update": {
+    input: {
+      "activity": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["activity"]>, AtPath<Parameters<(typeof ApplicationConceptSet.computations)["activityAccessError"]["fn"]>[0], ["activity"]>]>>;
+      "category"?: Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["category"]>>;
+      "cost"?: Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["cost"]>>;
+      "currency"?: Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["currency"]>>;
+      "dateTime"?: Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["dateTime"]>>;
+      "description"?: Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["description"]>>;
+      "group": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.computations)["activityAccessError"]["fn"]>[0], ["group"]>>;
+      "location"?: Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["location"]>>;
+      "name": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["name"]>>;
+      "source"?: Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["source"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.computations)["activityAccessError"]["fn"]>[0], ["user"]>>;
+    };
+    output: {
+      "success": true;
+    };
+    error: { error: AppWideError | "INVALID_DETAILS" | "INVALID_INPUT" | "NO_SUCH_ACTIVITY" | string };
+  };
   "/activities/want": {
     input: {
       "activity": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wanting"]["want"]>[0], ["item"]>, AtPath<Parameters<(typeof ApplicationConceptSet.computations)["activityAccessError"]["fn"]>[0], ["activity"]>]>>;
@@ -245,6 +264,7 @@ export type OnDeckWire = {
         "links": {
           "expires": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["_links"]>>>, ["expires"]>>;
           "link": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["_links"]>>>, ["link"]>>;
+          "name": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["_links"]>>>, ["name"]>>;
         }[];
       };
     };
@@ -270,6 +290,18 @@ export type OnDeckWire = {
       "success": true;
     };
     error: { error: AppWideError | "INVALID_INPUT" | "INVALID_ORDER" };
+  };
+  "/groups/rename-link": {
+    input: {
+      "group": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["renameLink"]>[0], ["group"]>>;
+      "link": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["renameLink"]>[0], ["link"]>>;
+      "name": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["renameLink"]>[0], ["name"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["renameLink"]>[0], ["user"]>>;
+    };
+    output: {
+      "success": true;
+    };
+    error: { error: AppWideError | "INVALID_INPUT" | "INVALID_LINK" | "INVALID_NAME" | "NOT_A_MEMBER" | "NO_SUCH_GROUP" };
   };
   "/groups/revoke-link": {
     input: {
@@ -445,6 +477,25 @@ export type OnDeckWireHttp = {
     };
     error: { error: HttpAppWideError | "CONFLICT" | "INTERNAL_ERROR" | "INVALID_REQUEST" };
   };
+  "/activities/update": {
+    input: {
+      "activity": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["activity"]>, AtPath<Parameters<(typeof ApplicationConceptSet.computations)["activityAccessError"]["fn"]>[0], ["activity"]>]>>;
+      "category"?: Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["category"]>>;
+      "cost"?: Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["cost"]>>;
+      "currency"?: Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["currency"]>>;
+      "dateTime"?: Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["dateTime"]>>;
+      "description"?: Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["description"]>>;
+      "group": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.computations)["activityAccessError"]["fn"]>[0], ["group"]>>;
+      "location"?: Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["location"]>>;
+      "name": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["name"]>>;
+      "source"?: Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["ActivityCapturing"]["update"]>[0], ["source"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.computations)["activityAccessError"]["fn"]>[0], ["user"]>>;
+    };
+    output: {
+      "success": true;
+    };
+    error: { error: HttpAppWideError | "INTERNAL_ERROR" | "INVALID_REQUEST" | "NOT_FOUND" };
+  };
   "/activities/want": {
     input: {
       "activity": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wanting"]["want"]>[0], ["item"]>, AtPath<Parameters<(typeof ApplicationConceptSet.computations)["activityAccessError"]["fn"]>[0], ["activity"]>]>>;
@@ -595,6 +646,7 @@ export type OnDeckWireHttp = {
         "links": {
           "expires": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["_links"]>>>, ["expires"]>>;
           "link": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["_links"]>>>, ["link"]>>;
+          "name": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["_links"]>>>, ["name"]>>;
         }[];
       };
     };
@@ -620,6 +672,18 @@ export type OnDeckWireHttp = {
       "success": true;
     };
     error: { error: HttpAppWideError | "INVALID_REQUEST" };
+  };
+  "/groups/rename-link": {
+    input: {
+      "group": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["renameLink"]>[0], ["group"]>>;
+      "link": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["renameLink"]>[0], ["link"]>>;
+      "name": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["renameLink"]>[0], ["name"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["MembershipTracking"]["renameLink"]>[0], ["user"]>>;
+    };
+    output: {
+      "success": true;
+    };
+    error: { error: HttpAppWideError | "FORBIDDEN" | "INVALID_REQUEST" | "NOT_FOUND" };
   };
   "/groups/revoke-link": {
     input: {

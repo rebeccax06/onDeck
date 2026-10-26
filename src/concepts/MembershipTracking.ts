@@ -12,7 +12,7 @@ export class InvalidLink extends Error {}
 
 const hash = (token: string) =>
   new Bun.CryptoHasher("sha256").update(token).digest("hex");
-type Link = { link: string; hash: string; expires: number };
+type Link = { link: string; hash: string; expires: number; name: string };
 
 type Invitation = { invitation: string; inviter: string; invitee: string };
 type Group = {
@@ -22,6 +22,7 @@ type Group = {
   members: string[];
   invitations: Invitation[];
   links?: Link[];
+  inviteLinkSequence?: number;
 };
 const order = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -215,13 +216,36 @@ export class MembershipTrackingConcept {
     const token = crypto.randomUUID() + crypto.randomUUID();
     const link = this.freshID(),
       expires = this.now() + 7 * 24 * 60 * 60 * 1000;
+    const nextSequence = { $add: [{ $ifNull: ["$inviteLinkSequence", { $size: { $ifNull: ["$links", []] } }] }, 1] };
     const result = await this.groups.updateOne(
       { _id: group, members: user },
-      { $push: { links: { link, hash: hash(token), expires } } },
+      [{ $set: {
+        inviteLinkSequence: nextSequence,
+        links: { $concatArrays: [{ $ifNull: ["$links", []] }, [{
+          link, hash: hash(token), expires,
+          name: { $concat: ["Invite link ", { $toString: nextSequence }] },
+        }]] },
+      } }],
     );
     if (!result.matchedCount)
       throw new NotAMember("Only members can invite someone.");
     return { link, token, expires };
+  }
+  async renameLink({ user, group, link, name }: { user: string; group: string; link: string; name: string }): Promise<Record<string, never>> {
+    await requireMember(this.groups, user, group);
+    if (typeof name !== "string" || !name.trim() || name.trim().length > 80)
+      throw new InvalidName("Use a link name between 1 and 80 characters.");
+    const now = this.now();
+    const result = await this.groups.updateOne(
+      { _id: group, members: user, links: { $elemMatch: { link, expires: { $gt: now } } } },
+      { $set: { "links.$[target].name": name.trim() } },
+      { arrayFilters: [{ "target.link": link, "target.expires": { $gt: now } }] },
+    );
+    if (!result.matchedCount) {
+      await requireMember(this.groups, user, group);
+      throw new InvalidLink("This invite link is no longer active.");
+    }
+    return {};
   }
   async revokeLink({
     user,
@@ -277,11 +301,11 @@ export class MembershipTrackingConcept {
     group,
   }: {
     group: string;
-  }): Promise<Array<{ link: string; expires: number }>> {
+  }): Promise<Array<{ link: string; expires: number; name: string }>> {
     return ((await this.groups.findOne({ _id: group }))?.links ?? [])
+      .map(({ link, expires, name }) => ({ link, expires, name }))
       .filter((link) => link.expires > this.now())
-      .sort((a, b) => a.expires - b.expires || order(a.link, b.link))
-      .map(({ link, expires }) => ({ link, expires }));
+      .sort((a, b) => a.expires - b.expires || order(a.link, b.link));
   }
   async _link({
     token,

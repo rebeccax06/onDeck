@@ -31,7 +31,7 @@
         </aside>
         <div class="workspace">
           <div class="notices" aria-live="polite">
-            <p v-if="busy || message" role="status">{{ busy ? 'Working…' : message }}</p>
+            <p v-if="busy && !findingOptions" role="status">Working…</p>
             <p v-if="syncWarning" class="hint" role="status">{{ syncWarning }}</p>
             <p v-if="namesWarning" class="hint">{{ namesWarning }}</p>
             <p v-if="error" role="alert" class="error">{{ error }}</p>
@@ -78,8 +78,23 @@
                 </section>
                 <section class="invite-panel" aria-labelledby="invite-heading">
                   <h2 id="invite-heading">Invite people</h2>
-                  <button class="primary" @click="copyInvite">Copy invite link</button>
-                  <ul v-if="inviteLinks.length" class="invite-list" aria-label="Active invitations"><li v-for="link in inviteLinks" :key="link.link"><span>Invite link</span><button class="text-button danger-text" @click="revokeInvite(link.link)" aria-label="Revoke invite link">Revoke</button></li></ul>
+                  <p class="hint">Anyone with a link can join until it expires or you revoke it. You can share the same link with multiple people.</p>
+                  <div class="heading-actions">
+                    <button class="primary" @click="copyInvite()">{{ inviteLink ? 'Copy link again' : 'Create and copy link' }}</button>
+                    <button v-if="inviteLink" type="button" @click="copyInvite(true)">Create new link</button>
+                  </div>
+                  <p class="hint invite-copy-hint">Full links are only available to copy in this session. Creating another link keeps existing ones active.</p>
+                  <h3 v-if="inviteLinks.length">Active links <span class="count">{{ inviteLinks.length }}</span></h3>
+                  <ul v-if="inviteLinks.length" class="invite-list" aria-label="Active invitations"><li v-for="link in inviteLinks" :key="link.link" :data-link="link.link">
+                    <form v-if="renamingLink===link.link" class="invite-rename-form" @submit.prevent="saveInviteLinkName">
+                      <label for="invite-link-name">Link name<input id="invite-link-name" v-model="inviteLinkName" required maxlength="80" /></label>
+                      <div class="heading-actions"><button type="button" @click="renamingLink=''">Cancel</button><button type="submit" class="primary">Save name</button></div>
+                    </form>
+                    <template v-else>
+                      <div><strong>{{ link.name }}</strong><span v-if="inviteLink && link.link===inviteLinkID" class="you-badge">Just copied</span><p class="hint">Expires {{ inviteExpiry(link.expires) }}</p><details class="invite-link-details"><summary>Link details</summary><p class="hint">ID {{ link.link }}</p></details></div>
+                      <div class="heading-actions"><button type="button" class="text-button" @click="beginRenameLink(link)" :aria-label="'Rename ' + link.name">Rename</button><button class="text-button danger-text" @click="revokeInvite(link.link)" :aria-label="'Revoke ' + link.name">Revoke</button></div>
+                    </template>
+                  </li></ul>
                 </section>
               </div>
               <div class="group-management-actions"><button class="danger-outline" @click="leave">Leave group</button><button class="text-button danger-text" @click="deleteGroup(group)">Delete group</button></div>
@@ -111,10 +126,16 @@
           <section v-if="tab==='pick'">
             <h1>Pick for Now</h1>
             <p v-if="!group">Choose a group first.</p>
-            <form-surface v-else @submit.prevent="pick" class="pick-form">
+            <form-surface v-else @submit.prevent="pick" class="pick-form" :aria-busy="findingOptions">
               <section class="form-section people-section" aria-labelledby="pick-people-heading">
                 <div class="pick-section-heading"><h2 id="pick-people-heading">People</h2><span class="selection-count" role="status">{{ participants.length }} selected</span></div>
                 <div class="people-choices"><label v-for="member in members" :key="member" class="choice person-choice"><input type="checkbox" v-model="participants" :value="member" /><span class="avatar" aria-hidden="true">{{ person(member).slice(0,1).toUpperCase() }}</span><span>{{ person(member) }}</span><span v-if="member===user" class="you-badge">You</span></label></div>
+              </section>
+              <section class="form-section">
+                <h2>Discover something for your mood</h2>
+                <label>What are you in the mood for? <span class="optional">Optional</span>
+                  <textarea v-model="discoveryPrompt" maxlength="500" placeholder="We want to do something chill"></textarea>
+                </label>
               </section>
               <details class="form-section pick-filters">
                 <summary aria-label="Filters"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18l-7 8v7l-4 2v-9L3 4Z"/></svg><span>Filters</span><span class="optional">Optional</span><span class="filter-disclosure-label" aria-hidden="true">Adjust</span></summary>
@@ -148,31 +169,42 @@
                     >Until <input v-model="filters.until" type="datetime-local"
                   /></label>
                 </div>
-                <p class="hint">
-                  Budget filters exclude unknown costs; date filters exclude
-                  activities without dates.
-                </p>
               </details>
-              <template #actions><button type="button" @click="navigate('deck')">Cancel</button><button class="primary" :disabled="!participants.length">Find options →</button></template>
+              <div v-if="findingOptions" class="discovery-loading" role="status" aria-live="polite">
+                <span class="loading-spinner" aria-hidden="true"></span>
+                <div><strong>{{ discoveryPrompt.trim() ? 'Gemini is finding ideas…' : 'Finding options…' }}</strong><p>{{ discoveryPrompt.trim() ? 'Weighing your mood and the selected people’s likes and repeat preferences. This may take a moment.' : 'Checking your group’s saved activities and preferences.' }}</p></div>
+              </div>
+              <template #actions><button type="button" @click="navigate('deck')">Cancel</button><button class="primary" :disabled="busy || !participants.length">{{ findingOptions ? (discoveryPrompt.trim() ? 'Finding ideas…' : 'Finding options…') : 'Find options →' }}</button></template>
             </form-surface>
-            <p v-if="picked && !options.length">
+            <p v-if="picked && !findingOptions && discoveryMessage" class="hint" role="status">{{ discoveryMessage }}</p>
+            <p v-if="picked && !findingOptions && !options.length">
               No activities match. Try fewer filters or add an idea.
             </p>
-            <ol>
-              <li v-for="a in options" :key="a.activity">
-                <button class="link" @click="open(a)">{{ a.name }}</button>
-                <p>
-                  {{ a.wantedCount }} interested · {{ a.completedCount }} have
-                  been · {{ cost(a) }}
-                </p>
+            <ol v-show="!findingOptions" class="pick-results" aria-label="Suggested activities">
+              <li v-for="(a, index) in options" :key="a.activity" class="pick-result-card">
+                <div class="pick-result-heading"><span class="pick-rank" :aria-label="'Rank ' + (index+1)">{{ index+1 }}</span><h2><button class="link" @click="open(a)">{{ a.name }}</button></h2></div>
+                <p class="pick-result-interest">{{ a.wantedCount }} interested · {{ a.completedCount }} have been · {{ a.repeatYesCount }} would repeat</p>
+                <p v-if="a.description" class="pick-result-description">{{ a.description }}</p>
+                <ul class="pick-result-facts" aria-label="Activity details">
+                  <li>{{ cost(a) }}</li><li v-if="a.location">{{ a.location }}</li><li v-if="a.category">{{ a.category }}</li><li v-if="a.dateTime">{{ new Date(a.dateTime).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) }}</li>
+                </ul>
+                <div v-if="discovery?.reasons[a.activity]" class="pick-result-reason"><h3>Why it might fit</h3><p>{{ discovery.reasons[a.activity] }}</p></div>
+                <p v-if="a.unknownFilters.length" class="pick-result-unknown">Check before deciding: {{ a.unknownFilters.join(', ') }} not provided.</p>
               </li>
             </ol>
           </section>
             </template>
-            <activity-details v-if="detail" :activity="detail" :user="user" :person="person" :group-name="currentGroup?.name || 'On Deck'" :source-url="safeLink(detail.source)" :cost-label="cost(detail)" @back="closeDetails" @action="update" @repeat="update('repeat',$event)" @delete="deleteActivity(detail)"></activity-details>
+            <activity-details :key="detail?.activity" :busy="busy" @save="saveActivity" v-if="detail" :activity="detail" :user="user" :person="person" :group-name="currentGroup?.name || 'On Deck'" :source-url="safeLink(detail.source)" :cost-label="cost(detail)" @back="closeDetails" @action="update" @repeat="update('repeat',$event)" @delete="deleteActivity(detail)"></activity-details>
           </fieldset>
         </div>
       </template>
+      <div v-if="user" class="toast-region" role="status" aria-live="polite" aria-atomic="true">
+        <div v-if="message" class="success-toast">
+          <span class="toast-check" aria-hidden="true">✓</span>
+          <span>{{ message }}</span>
+          <button type="button" class="text-button toast-dismiss" aria-label="Dismiss notification" @click="dismissMessage">×</button>
+        </div>
+      </div>
       <picture-editor :source="pictureSource" @apply="applyGroupPicture" @cancel="cancelPictureEditor"></picture-editor>
       <confirm-dialog :prompt="confirmation" @answer="answerConfirmation"></confirm-dialog>
       </div>

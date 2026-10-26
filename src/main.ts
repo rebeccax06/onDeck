@@ -4,6 +4,7 @@ import { assembleApplication } from "./assembly.ts";
 import { createPeopleHandler, clerkNameLookup } from "./people.ts";
 import { createLiveHub, type LiveSocketData } from "./live.ts";
 import { createSharingHandler } from "./sharing.ts";
+import { createDiscoveryHandler, geminiRanker } from "./discovery.ts";
 import { db } from "./db.ts";
 
 const application = assembleApplication();
@@ -12,6 +13,7 @@ const origins = (process.env.CLERK_AUTHORIZED_PARTIES ?? "http://127.0.0.1:8080,
 const live = createLiveHub(authenticate, origins);
 const sharing = createSharingHandler(authenticate, application.concepts.MembershipTracking);
 const api = createApiHandler(application, authenticate, { changed: live.changed });
+const discovery = createDiscoveryHandler(application, authenticate, geminiRanker());
 const people = createPeopleHandler(authenticate, application.concepts.MembershipTracking, clerkNameLookup(process.env.CLERK_SECRET_KEY!));
 
 const server = Bun.serve<LiveSocketData>({
@@ -23,6 +25,7 @@ const server = Bun.serve<LiveSocketData>({
     "/live": (request: Request, server: Bun.Server<LiveSocketData>) => live.upgrade(request, server),
     "/sharing/*": sharing,
     "/api/*": api,
+    "/discovery/options": discovery,
     "/auth/people": people,
     "/health": async () => {
       try {

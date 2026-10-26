@@ -1,107 +1,93 @@
 # OnDeck
 
-A website to help you and your friends keep track of the things you want to do
+OnDeck helps friends save activity ideas, share them with groups, and choose what to do together using their interests and repeat preferences. Optional Gemini discovery ranks saved ideas for a mood such as “something chill.”
 
-[Problem Framing and Stakeholders](./problem-framing.md)
-[Application Pitch](./application-pitch.md)
-[Concept specifications, essential reactions, and concept roles](./concepts.md)
-[UI Sketches](./ui-sketches.md)
-[User Journey](./user-journey.md)
-[Visual Design Study](https://docs.google.com/presentation/d/1EJIy1UGXG7Z7uk9DXubN1bM-2p0PRY6cemwZzJnPhvw/edit?usp=sharing)
-[Deployed Link](https://on-deck.mit-sdg.dev/)
+[Live app](https://on-deck.mit-sdg.dev/)
 
+[P4 demo](https://drive.google.com/file/d/1NUsqf7y-yDeOm3cRbPR1RHT90FIQWzG_/view?usp=sharing)
 
-## Application design
+[Beta demo](https://youtu.be/lOiKlo7TzRc)
 
-[Concept designs](./design/concepts/)
-[application types](./design/types.md)
-[OnDeck composition and endpoints](./design/compositions/OnDeck.md) specify the app before implementation.
-The [HTTP API reference](./docs/api.md) documents every endpoint, authentication, request and response shapes, access controls, and public errors.
-Validate the design independently with `bun run check:design`. After implementation, `bun run check` also checks that the code and generated artifacts agree with the design.
+[Alpha demo](https://drive.google.com/file/d/1MzA0Gtd-2lBIoQ_Ru9OA5ZyYlzV7R07Q/view?usp=sharing)
 
-# Demo
+[Project materials](#project-materials)
 
-[P2 Alpha](https://drive.google.com/file/d/1MzA0Gtd-2lBIoQ_Ru9OA5ZyYlzV7R07Q/view?usp=sharing)
-[P2 Beta](https://youtu.be/lOiKlo7TzRc)
+[Local setup](#local-setup) 
 
-## Run the API
+[Build and checks](#build-and-checks)
 
-Install dependencies with `bun install`. Copy `.env.example` to `.env` if you do not already have one. The example connects to the local MongoDB container using the development credentials from `compose.yaml` and the database named `myapp`.
+[Tests](#tests)
 
-Start MongoDB and the backend:
+## Project materials
 
-```sh
-bun run db:up
-bun run dev:backend
-```
+| Material | Links |
+| --- | --- |
+| Goals and stakeholders | [Problem framing](problem-framing.md), [application pitch](application-pitch.md) |
+| Design and specifications | [Concept overview](concepts.md), [concept specifications](design/concepts/), [types](design/types.md), [composition and reactions](design/compositions/OnDeck.md) |
+| Interface and journeys | [UI sketches](ui-sketches.md), [user journey](user-journey.md), [visual design study](https://docs.google.com/presentation/d/1EJIy1UGXG7Z7uk9DXubN1bM-2p0PRY6cemwZzJnPhvw/edit?usp=sharing) |
+| Implementation reference | [HTTP API](docs/api.md), [generated design read-back](generated/ondeck.md), [design notebook](design-changes.md) |
+| Setup and validation | [Extended setup guide](docs/setup.md), [tests](tests/), [validation results](docs/test-results/README.md) |
 
-The API listens at `http://127.0.0.1:3000/api` by default; `HOST` and `PORT` can override the address. `GET /health` returns 200 when MongoDB is readable and 503
-when it is unavailable. Requests to the app's endpoints use POST and JSON:
+## Local setup
+
+Requires **Bun 1.4.2**, **Podman with a Compose provider**, and a **Clerk application** for sign-in. Start the Podman engine first; on macOS, initialize its VM once with `podman machine init`, then use `podman machine start`.
+
+From the repository root:
 
 ```sh
-curl http://127.0.0.1:3000/api/groups/create \
-  -H 'Content-Type: application/json' \
-  -H "Authorization: Bearer $CLERK_SESSION_TOKEN" \
-  -d '{"name":"Roommates"}'
+bun install --frozen-lockfile
+cp .env.example .env  # First setup only; preserve an existing .env.
 ```
 
-The server requires a verified Clerk session. The `user` field remains in the generated endpoint contract, but the server always replaces it with the signed-in account ID.
-
-To try the typed API client, set `CLERK_USER_ID` to your account ID and `CLERK_SESSION_TOKEN` to a current session token in your local environment. A signed-in browser can obtain a token with `await window.Clerk.session.getToken()` in its developer console. Tokens expire quickly; obtain a fresh one if needed.
-Do not commit or share tokens. Then run:
-
-```sh
-bun scripts/try-api.ts
-```
-
-This creates a demo group and activity that remain in MongoDB. To use another backend address, pass it as an argument, for example `bun scripts/try-api.ts http://127.0.0.1:4000/api`.
-
-If another MongoDB container already uses port 27017, stop that container before starting this project's MongoDB, or configure a different local port.
-
-Link extraction is optional and disabled by default. Pass an extraction callback to `assembleApplication` to provide it. Manual capture works without an extractor, and unsupported links or extraction failures leave the capture available for editing.
-
-Each `.registry.ts` module connects a class to its concept specification and refusal codes; the suffix is a naming convention. After changing implementation or composition declarations, run `bun run generate` and `bun run check` to regenerate and validate the design read-back and client types in `generated/`.
-
-## Run the app
-
-The frontend uses Vue 3 for its interface and Bun to serve and bundle the files in `web/`. There is no separate Vite project or frontend package to install.
-
-After installing dependencies and copying `.env.example` to `.env`, set `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and `CLERK_AUTHORIZED_PARTIES`. Use your frontend URL for `CLERK_AUTHORIZED_PARTIES`; the example includes both local development URLs.
+In `.env`, set `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` from your Clerk application. Keep the supplied `MONGODB_URL` for the local database and `CLERK_AUTHORIZED_PARTIES` for the local frontend origins. Gemini configuration is optional; see [Google Cloud setup](docs/setup.md#optional-gemini-discovery). Never commit credentials.
 
 ```sh
 bun run dev
 ```
 
-This starts MongoDB, the backend at `http://127.0.0.1:3000`, and the frontend at [http://127.0.0.1:8080](http://127.0.0.1:8080). If MongoDB is already running, you can run `bun run dev:backend` and `bun run dev:frontend` in separate terminals instead.
+This starts MongoDB in Podman and the backend/frontend in watch mode:
 
-Refresh the browser after frontend code changes. Saved group updates appear automatically. Unfinished activity drafts stay in memory, so save them before refreshing.
+- **App:** http://127.0.0.1:8080 — sign up or sign in with Clerk.
+- **API:** http://127.0.0.1:3000/api — authenticated POST/JSON endpoints.
+- **Health:** http://127.0.0.1:3000/health — checks database connectivity.
 
-Invite friends with **Groups → Members → Copy invite link** and share the copied link yourself. No email provider setup is needed.
+Refresh the browser after frontend changes; save unfinished drafts first. Stop the app with Ctrl+C; stop the database with `podman compose stop mongo` (data is retained). See [troubleshooting and alternate commands](docs/setup.md#running-and-troubleshooting).
+
+## Build and checks
+
+Bun bundles the frontend when serving it; the backend runs TypeScript directly. To build browser assets independently:
+
+```sh
+bun build web/index.html --target browser --outdir /tmp/ondeck-web-build
+```
+
+The output is a frontend bundle; it still needs the backend routes and Clerk configuration. For design and implementation validation:
+
+```sh
+bun run check:design
+bun run generate
+bun run check
+```
+
+Change `design/` before implementation. `generate` refreshes the checked-in client types and design read-back; `check` validates concepts, generated artifacts, TypeScript, and CSS.
 
 ## Tests
 
-With MongoDB running, use `bun test` to run the concept and composition suites. Tests use `MONGODB_TEST_URL`, falling back to `MONGODB_URL` from `.env`. Each suite or test creates a unique `ondeck_test_*` database and drops it afterward; it does not clear the configured application database.
+After installing dependencies and creating `.env`, start MongoDB and run:
 
-The concept and composition tests cover all six concepts, including their main flows, refusal cases, query ordering and empty results, persistence, repeated transitions, and concurrent writes. Composition tests cover the core journey, reactions, ranking and filtering, and endpoint failures. Authentication HTTP tests verify that the host supplies identity. `tests/auth/Clerk.test.ts` uses local signing keys and Clerk’s real verifier to test valid sessions, missing and malformed tokens, expiry, origin restrictions, and signature tampering without calling Clerk or requiring real API keys.
+```sh
+bun run db:up
+bun test
+```
 
-Each concept has its own suite in `tests/concepts/<ConceptName>.test.ts`.
-Run one suite with, for example, `bun test tests/concepts/Wanting.test.ts`.
+Tests use temporary `ondeck_test_*` databases via `MONGODB_TEST_URL` or `MONGODB_URL` and remove them afterward. Test authentication and Gemini responses are local fakes; real Clerk/Google credentials and billed Gemini calls are not required.
 
-### Saved test execution output
-
-[Full test output](./docs/test-results/bun-test.txt): **68 passed, 0 failed, 432 assertions across 16 files**, including the two-account desktop/mobile Chrome journey. The output includes the execution timestamp, base commit, working-tree status, and exit code. A late-answer warning during browser navigation is retained in the output; all assertions passed.
-
-The browser journey also injects a partial sharing failure, deletes a selected group through the API, and verifies recovery with another group. It checks that the original activity and first share are reused. Invitation expiry checks use a controlled clock, including the exact expiry boundary, without editing stored state.
-
-To rerun the same suite, install dependencies with `bun install`, copy `.env.example` to `.env`, and start MongoDB with `bun run db:up`. Then run:
+The desktop/mobile browser journey additionally requires **Google Chrome**. Set `CHROME_PATH` if Chrome is not at the default macOS location:
 
 ```sh
 ONDECK_BROWSER_TESTS=1 bun test
+# One suite:
+bun test tests/concepts/InviteLinks.test.ts
 ```
 
-The browser test requires Google Chrome at its default macOS location; set `CHROME_PATH` to use another Chrome executable. It uses a temporary browser profile and database with test-only authentication, without real Clerk sign-in. To save a fresh execution transcript:
-
-```sh
-set -o pipefail
-ONDECK_BROWSER_TESTS=1 bun test 2>&1 | tee docs/test-results/bun-test.txt
-```
+See [recorded validation results](docs/test-results/README.md) for the test summary and full transcript, and [test details](docs/setup.md#testing) to rerun them. Recorded results describe the timestamped local checkout, not deployment verification.

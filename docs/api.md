@@ -82,7 +82,7 @@ The server sends `{type: "ready"}` on connection and `{type: "changed"}` after a
 
 Optional `details` fields are `source`, `description`, `location`, `category`, `cost`, `currency`, and `dateTime`. Text fields are strings. `name` must be nonblank. Cost is a finite nonnegative number in the currency's major unit per person; zero means free. Supply cost and supported currency together (for example, `cost: 15, currency: "USD"`). An omitted cost is unknown. `dateTime` is an ISO 8601 instant with a timezone offset, such as `2026-10-12T18:00:00-04:00`. Optional fields may be omitted or supplied as `null`.
 
-Adding requires membership and an existing activity. Sharing in multiple groups uses separate requests; retain the confirmed activity ID when retrying a failed share. A successful suggestion records the suggester's interest if absent. Duplicate suggestions conflict. Only the suggester, while a current member, can withdraw a suggestion. Withdrawal retains the activity and personal facts.
+Adding requires destination membership and an existing activity that the caller created or can access through a suggestion in another current member group. Knowing an activity ID alone does not grant sharing permission; a refusal returns 403 `FORBIDDEN`. Older activities without retained creator information require current group access. Sharing in multiple groups uses separate requests; retain the confirmed activity ID when retrying a failed share. A successful suggestion records the suggester's interest if absent. Duplicate suggestions conflict. Only the suggester, while a current member, can withdraw a suggestion. Withdrawal retains the activity and personal facts.
 
 ## Activities and personal preferences
 
@@ -116,7 +116,7 @@ Completion clears the caller's heart. Setting repeat preference to `"YES"` resto
 
 The response is `{book: {result: {options, participants, filters}}}`. Each option has the Activity fields, participant-only member rows and counts, plus `wantedCount`, `wantedWithoutCompletionCount`, `completedCount`, and `repeatYesCount`. The response echoes deduplicated participants and applied filters.
 
-Filters combine with AND: category matches a trimmed, case-insensitive exact label; location matches a trimmed, case-insensitive substring. Budget requires both nonnegative `maxCost` and supported `currency`, excluding unknown costs and other currencies without conversion. Date bounds are inclusive timezone-bearing instants, with `from` no later than `until`. Missing activity fields exclude it only when the corresponding filter is active. Blank category/location filters are omitted.
+Filters combine with AND: category matches a trimmed, case-insensitive exact label; location matches a trimmed, case-insensitive substring. Budget requires both nonnegative `maxCost` and supported `currency`, retaining unknown costs and excluding known prices in other currencies without conversion. Date bounds are inclusive timezone-bearing instants, with `from` no later than `until`. Missing or blank activity fields remain eligible. Each option includes `unknownFilters`, labels for missing details relevant to active filters (Category, Location, Cost, Date), which clients show as details to check. Blank category/location filters are omitted.
 
 At most ten options are ranked by wanted count descending, then wanted without completion descending, then name and ID ascending. Zero-interest options can appear after interested options. No matches returns an empty list. This read does not store a plan, change interest, or record completion.
 
@@ -128,7 +128,7 @@ Errors have the form `{error: "CODE"}`. The HTTP host and policy expose these ca
 | --- | --- | --- |
 | 400 | `INVALID_REQUEST` | Malformed body, invalid shape, or invalid names, details, preferences, participants, or filters. |
 | 401 | `UNAUTHORIZED` | Missing or invalid session. |
-| 403 | `FORBIDDEN` | Caller lacks membership, capture ownership, invitation ownership, or withdrawal permission. |
+| 403 | `FORBIDDEN` | Caller lacks membership, capture ownership, invitation ownership, activity sharing access, or withdrawal permission. |
 | 404 | `NOT_FOUND` | Requested resource or group/activity association does not exist. |
 | 409 | `CONFLICT` | Duplicate membership, invitation, suggestion, or already-applied personal transition. |
 | 500 | `INTERNAL_ERROR` | Unexpected server failure. |
@@ -143,3 +143,19 @@ Check `"error" in result` before reading a typed client's success response. Netw
 - `GET /health` is public and returns `{status: "ok"}` with 200 when MongoDB  is readable, or `{status: "unavailable"}` with 503. Through the frontend,  an unreachable backend returns 503 `{error: "UNAVAILABLE"}`.
 
 The browser refreshes groups, invitations, membership, activities, open activity details, and previously submitted Pick results after WebSocket change notices, connection/reconnection, or focus return. There is no routine data polling. Events during a read queue another read; events during a mutation wait for it to settle. Background reads preserve unfinished drafts, filter inputs, and participant choices except members who have left. Stale responses from earlier groups/accounts/actions are discarded. Failures retain the last successful view, show an update warning, and retry automatically. Display names refresh separately, normally at most once per minute. Drafts remain in memory and do not survive a page reload.
+
+### Editing shared activities
+
+`POST /api/activities/update` accepts `{group, activity, name, ...details}` with the same optional details as capture confirmation. Any current group member may edit an activity suggested in that group. The request replaces all details, clearing omitted optional fields. Edits appear in every group sharing the activity; creator, suggestions, and personal preferences are preserved. Invalid details return 400; missing membership returns 403; an activity absent from the group returns 404. Concurrent edits use the last successful write.
+
+
+### Mood discovery
+
+`POST /discovery/options` requires the same bearer authentication as `/api`, accepting Pick for Now inputs plus a required nonblank `prompt` (maximum 500 characters). The authenticated host overrides `user`, invokes the authorized picker, asks Gemini to rank its candidates using the mood and selected participants’ anonymous wants/completions/repeat preferences, and rechecks group access before responding. Response: `{book: {result: {...pickResult, discovery: {status, reasons}}}}`; `status` is `ranked`, `unconfigured`, `unavailable`, or `empty`, and `reasons` maps validated candidate IDs to tentative explanations. Provider failure returns ordinary options, not invented activities. Bodies are capped at 8 KiB. Configuration and credentials remain server-side. Background refresh calls the ordinary picker only.
+
+Discovery fallback includes `discovery.failureReason` (`timeout`, `invalid_response`, or `provider_error`) when unavailable. Backend diagnostics contain only classification, duration, candidate count, and numeric HTTP status, with no request or provider-response content. Ranking has a 30-second overall deadline.
+
+
+### Invite link names
+
+Active link listings now include `{link, expires, name}`. New links receive group-local numbered names such as Invite link 1; numbers are allocated atomically and not reused after revocation. `POST /api/groups/rename-link` accepts `{group, link, name}` and returns `{success: true}`. Current members may rename active links using 1–80 trimmed characters. Blank/long names return 400, nonmembers 403, and missing/expired/revoked links 404. Renaming preserves the link URL and expiry.

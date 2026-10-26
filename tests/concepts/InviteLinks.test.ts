@@ -3,6 +3,7 @@ import { MongoClient, type Db } from "mongodb";
 import {
   MembershipTrackingConcept,
   InvalidLink,
+  InvalidName,
   NotAMember,
 } from "../../src/concepts/MembershipTracking.ts";
 const client = new MongoClient(
@@ -85,4 +86,41 @@ test("expired links cannot be previewed or accepted, and an inviter leaving does
       token: valid.token,
     }),
   ).toEqual({ group });
+});
+
+
+test("link names are automatic, editable by members, and preserve token and expiry", async () => {
+  let now = 1000;
+  const membership = new MembershipTrackingConcept(db, () => crypto.randomUUID(), () => now);
+  const { group } = await membership.create({ creator: "name-host", name: "Names" });
+  const first = await membership.createLink({ user: "name-host", group });
+  const second = await membership.createLink({ user: "name-host", group });
+  const original = (await membership._links({ group })).find(row => row.link === first.link)!;
+  expect(original.name).toBe("Invite link 1");
+  await expect(membership.renameLink({ user: "outsider", group, link: first.link, name: "Stolen" })).rejects.toBeInstanceOf(NotAMember);
+  for (const name of [" ", "x".repeat(81)]) {
+    await expect(membership.renameLink({ user: "name-host", group, link: first.link, name })).rejects.toBeInstanceOf(InvalidName);
+  }
+  expect((await membership._links({ group })).find(row => row.link === first.link)).toEqual(original);
+  await membership.joinLink({ user: "name-guest", token: first.token });
+  await membership.renameLink({ user: "name-guest", group, link: first.link, name: "  Work friends  " });
+  const saved = (await new MembershipTrackingConcept(db, undefined, () => now)._links({ group })).find(row => row.link === first.link)!;
+  expect(saved).toEqual({ ...original, name: "Work friends" });
+  expect((await membership._links({ group })).find(row => row.link === second.link)?.name).toBe("Invite link 2");
+  expect(await membership.joinLink({ user: "new-guest", token: first.token })).toEqual({ group });
+  await membership.revokeLink({ user: "name-host", group, link: second.link });
+  await expect(membership.renameLink({ user: "name-host", group, link: second.link, name: "Revoked" })).rejects.toBeInstanceOf(InvalidLink);
+  now = first.expires;
+  await expect(membership.renameLink({ user: "name-host", group, link: first.link, name: "Expired" })).rejects.toBeInstanceOf(InvalidLink);
+});
+
+
+test("automatic invite names allocate distinct numbers concurrently and do not reuse revoked numbers", async () => {
+  const membership = new MembershipTrackingConcept(db);
+  const { group } = await membership.create({ creator: "counter-host", name: "Counter" });
+  const created = await Promise.all(Array.from({ length: 3 }, () => membership.createLink({ user: "counter-host", group })));
+  expect((await membership._links({ group })).map(row => row.name).sort()).toEqual(["Invite link 1", "Invite link 2", "Invite link 3"]);
+  for (const { link } of created) await membership.revokeLink({ user: "counter-host", group, link });
+  await membership.createLink({ user: "counter-host", group });
+  expect((await membership._links({ group }))[0]?.name).toBe("Invite link 4");
 });

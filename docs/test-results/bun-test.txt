@@ -1,127 +1,194 @@
-OnDeck automated test execution
-Recorded: 2026-10-23T03:07:29.951214+00:00
-Base commit: 29547df88fbd26512bc78195ef2a9d07c1e97e10
-Working tree: includes uncommitted changes
-Command: ONDECK_BROWSER_TESTS=1 bun test
-Includes headless Chrome and temporary MongoDB test databases.
+OnDeck local validation execution
+Recorded: 2026-10-26T18:18:26.003253+00:00
+Base commit: 1ef76cf1659f3ce1fcd41724c23dcf095a440377
+Working tree at start (includes uncommitted changes):
+M  .env.example
+ M README.md
+M  bun.lock
+ M design/compositions/OnDeck.md
+ M design/concepts/ActivityCapturing.md
+ M design/concepts/MembershipTracking.md
+ M docs/api.md
+ M generated/ondeck.md
+M  generated/wire.ts
+M  package.json
+M  src/compositions/OnDeck.ts
+M  src/compositions/reads.ts
+M  src/concepts/ActivityCapturing.registry.ts
+M  src/concepts/Concept.ts
+M  src/concepts/MembershipTracking.ts
+A  src/discovery.ts
+M  src/http.ts
+M  src/main.ts
+A  tests/auth/Discovery.test.ts
+M  tests/compositions/OnDeck.test.ts
+M  tests/concepts/InviteLinks.test.ts
+M  tests/frontend/Browser.test.ts
+M  web/app.ts
+M  web/components/ActivityDetails.ts
+M  web/index.html
+M  web/server.ts
+M  web/styles.css
+?? design-changes.md
+?? docs/setup.md
 
+Environment: ONDECK_BROWSER_TESTS=1
+Scope: local host, real MongoDB, headless Chrome, isolated test databases.
+Authentication and Gemini responses in automated tests are fakes; no billed model calls or deployed-app checks.
+
+Command: bun run check:design
+$ sync-engine check-design design/concepts/*.md design/types.md design/compositions/*.md
+Design form check passed for 8 files.
+
+Exit code: 0
+
+Command: bun run check
+$ sync-engine check && sync-engine artifacts check && tsc --noEmit && bun run check:styles
+Concept action/query source check passed for 6 concepts.
+Application diagnostic check passed with 26 advisories (use --show-advisories to list them).
+$ bun scripts/check-styles.ts
+Frontend stylesheet bundle check passed.
+
+Exit code: 0
+
+Command: bun test
 bun test v1.4.2 (744846f84)
 
 tests/transport/Live.test.ts:
-(pass) tickets require authentication and an allowed origin, and cannot be reused [5.90ms]
-(pass) real proxied sockets deliver settled cross-user changes, exclude strangers, and recover after reconnect [213.82ms]
-(pass) reusable links join members and group cards obey only the caller's saved order [54.06ms]
-(pass) deleting a group requires membership, removes invitations, notifies members, and preserves shared activities [142.25ms]
-(pass) members can rename and change group pictures; invalid or unauthorized edits preserve saved data [96.98ms]
+(pass) tickets require authentication and an allowed origin, and cannot be reused [13.41ms]
+(pass) real proxied sockets deliver settled cross-user changes, exclude strangers, and recover after reconnect [312.32ms]
+(pass) reusable links join members and group cards obey only the caller's saved order [57.26ms]
+(pass) deleting a group requires membership, removes invitations, notifies members, and preserves shared activities [136.52ms]
+(pass) members can rename and change group pictures; invalid or unauthorized edits preserve saved data [74.19ms]
 
 tests/frontend/LiveRefresh.test.ts:
-(pass) a delayed group A response cannot replace group B after switching [0.67ms]
-(pass) a foreground write invalidates an older read even within the same group [0.10ms]
-(pass) a failed read retains the last view, reports failure, and allows recovery [0.17ms]
-(pass) an old account's failed read cannot replace the new account's status [0.15ms]
-(pass) timer and focus requests cannot start overlapping reads [0.10ms]
-(pass) unmounting suppresses pending results, pending errors, and further reads [0.16ms]
-(pass) an invalidation during a read queues another read and suppresses the stale snapshot [0.09ms]
+(pass) a delayed group A response cannot replace group B after switching [0.28ms]
+(pass) a foreground write invalidates an older read even within the same group [0.06ms]
+(pass) a failed read retains the last view, reports failure, and allows recovery [0.14ms]
+(pass) an old account's failed read cannot replace the new account's status [0.06ms]
+(pass) timer and focus requests cannot start overlapping reads [0.07ms]
+(pass) unmounting suppresses pending results, pending errors, and further reads [0.12ms]
+(pass) an invalidation during a read queues another read and suppresses the stale snapshot [0.07ms]
 
 tests/frontend/Browser.test.ts:
 Browser: create group
-{"requestId":"b7d04caa-eb42-4943-b9dd-6e28f45ce9be","level":"warn","message":"Reaction \"OnDeck.GetGroup:allowed\" answered a request on \"?\" after it stopped pending. Reactions that can answer the same request must partition their conditions; registration order never decides. A timeout can also make an answer arrive late.","timestamp":"2026-10-23T03:07:34.251Z"}
 Browser: join invitation
 Browser: add activity
 Browser: reorder and mobile layout
 Browser: recover partial sharing after a selected group disappears
-(pass) desktop and mobile journey uses the actual app with two accounts and live sockets [10188.81ms]
+(pass) desktop and mobile journey uses the actual app with two accounts and live sockets [12996.81ms]
 
 tests/frontend/CrossUser.test.ts:
-(pass) two typed HTTP clients share persisted hearts through reactive refresh, then lose access on leave [288.81ms]
+(pass) two typed HTTP clients share persisted hearts through reactive refresh, then lose access on leave [138.51ms]
 
 tests/frontend/Templates.test.ts:
 You are running a development build of Vue.
 Make sure to use the production build (*.prod.js) when deploying for production.
-(pass) the actual HTML page compiles to valid Vue render JavaScript [32.78ms]
-(pass) the activity card template compiles to valid Vue render JavaScript [1.46ms]
-(pass) the group card template compiles to valid Vue render JavaScript [2.03ms]
-(pass) activity details template compiles to valid Vue render JavaScript [1.40ms]
-(pass) group picker template compiles to valid Vue render JavaScript [2.26ms]
-(pass) picture editor template compiles to valid Vue render JavaScript [1.18ms]
-(pass) shared form template compiles to valid Vue render JavaScript [0.34ms]
-(pass) confirmation dialog template compiles to valid Vue render JavaScript [0.39ms]
+(pass) the actual HTML page compiles to valid Vue render JavaScript [30.65ms]
+(pass) the activity card template compiles to valid Vue render JavaScript [1.16ms]
+(pass) the group card template compiles to valid Vue render JavaScript [1.92ms]
+(pass) activity details template compiles to valid Vue render JavaScript [1.88ms]
+(pass) group picker template compiles to valid Vue render JavaScript [0.94ms]
+(pass) picture editor template compiles to valid Vue render JavaScript [0.66ms]
+(pass) shared form template compiles to valid Vue render JavaScript [0.18ms]
+(pass) confirmation dialog template compiles to valid Vue render JavaScript [0.25ms]
 
 tests/auth/People.test.ts:
-(pass) display names require authentication before any directory lookup [0.46ms]
-(pass) display names include only the caller, group members, and pending inviters [0.28ms]
-(pass) missing profiles get a member label without exposing email addresses [0.12ms]
-(pass) directory failure has a retryable response without leaking provider details [0.27ms]
+(pass) display names require authentication before any directory lookup [0.37ms]
+(pass) display names include only the caller, group members, and pending inviters [0.20ms]
+(pass) missing profiles get a member label without exposing email addresses [0.08ms]
+(pass) directory failure has a retryable response without leaking provider details [0.20ms]
 
 tests/auth/Clerk.test.ts:
 Attention: Clerk collects telemetry data from its SDKs when connected to development instances.
 The data collected is used to inform Clerk's product roadmap.
 To learn more, including how to opt-out from the telemetry program, visit: https://clerk.com/docs/telemetry.
 
-(pass) Clerk session authentication > a verified session supplies its stable account identity [4.74ms]
-(pass) Clerk session authentication > missing or malformed tokens cannot supply an identity [0.57ms]
-(pass) Clerk session authentication > expired and not-yet-valid tokens are rejected [2.87ms]
-(pass) Clerk session authentication > tokens issued for another frontend origin are rejected [1.56ms]
-(pass) Clerk session authentication > modifying an account identity invalidates the signature [1.49ms]
+(pass) Clerk session authentication > a verified session supplies its stable account identity [4.68ms]
+(pass) Clerk session authentication > missing or malformed tokens cannot supply an identity [0.75ms]
+(pass) Clerk session authentication > expired and not-yet-valid tokens are rejected [2.34ms]
+(pass) Clerk session authentication > tokens issued for another frontend origin are rejected [1.24ms]
+(pass) Clerk session authentication > modifying an account identity invalidates the signature [1.24ms]
+
+tests/auth/Discovery.test.ts:
+(pass) Gemini uses project/location/model and sends no member identities or source URLs [0.51ms]
+Discovery fallback {"reason":"invalid_response","elapsedMs":0,"candidateCount":2}
+Discovery fallback {"reason":"invalid_response","elapsedMs":0,"candidateCount":2}
+Discovery fallback {"reason":"invalid_response","elapsedMs":0,"candidateCount":2}
+Discovery fallback {"reason":"invalid_response","elapsedMs":0,"candidateCount":2}
+Discovery fallback {"reason":"invalid_response","elapsedMs":0,"candidateCount":2}
+Discovery fallback {"reason":"provider_error","elapsedMs":0,"candidateCount":2}
+(pass) unconfigured, failed, blocked, invented, and duplicate rankings preserve ordinary options [0.93ms]
+(pass) host requires authentication, bounds inputs, supplies actor, and rechecks delayed access [1.34ms]
+(pass) vague activity names retain selected people's likes and repeat signals without identities [0.25ms]
+(pass) fallback diagnostics distinguish timeout, invalid output, and provider errors without content [1.42ms]
 
 tests/auth/Sharing.test.ts:
-(pass) invite previews require sign-in and expose only the group name [0.30ms]
-(pass) removed email routes are unavailable and never look up invitations [0.12ms]
-(pass) invalid preview requests and provider failures return explicit errors [0.34ms]
+(pass) invite previews require sign-in and expose only the group name [0.16ms]
+(pass) removed email routes are unavailable and never look up invitations [0.11ms]
+(pass) invalid preview requests and provider failures return explicit errors [0.27ms]
 
 tests/compositions/OnDeck.test.ts:
-(pass) full journey: invitations, manual capture, sharing, heart, completion, repeat, and pick [368.35ms]
-(pass) access and input failures have explicit responses and no side effects [128.21ms]
-(pass) Pick for Now ranks interest then novelty and applies inclusive dates and known budgets [197.65ms]
-(pass) optional extraction proposes details; unsupported, invalid, and failed extraction stay manual [35.16ms]
-(pass) HTTP host supplies identity and exposes public status categories [14.15ms]
-(pass) Pick for Now returns at most ten options and does not equate unknown costs with free [353.55ms]
-(pass) repeat NO clears only that person's heart across groups and remains safe when already off [181.86ms]
+(pass) full journey: invitations, manual capture, sharing, heart, completion, repeat, and pick [188.72ms]
+(pass) access and input failures have explicit responses and no side effects [28.83ms]
+(pass) Pick for Now ranks interest then novelty and applies inclusive dates and known budgets [53.30ms]
+(pass) optional extraction proposes details; unsupported, invalid, and failed extraction stay manual [17.34ms]
+(pass) HTTP host supplies identity and exposes public status categories [6.44ms]
+(pass) Pick for Now returns at most ten options and does not equate unknown costs with free [142.74ms]
+(pass) repeat NO clears only that person's heart across groups and remains safe when already off [75.05ms]
+(pass) sharing requires ownership or current source-group access; refusals do not create wants [57.58ms]
+(pass) members edit shared details without changing ownership, suggestions, or preferences [71.50ms]
+(pass) filters retain unknown details and exclude known mismatches [70.46ms]
 
 tests/concepts/ActivityCapturing.test.ts:
-(pass) ActivityCapturing with MongoDB > principle: capture, propose, correct, confirm; survives a new concept instance [25.80ms]
-(pass) ActivityCapturing with MongoDB > manual confirmation needs no proposal and does not invent missing fields [3.46ms]
-(pass) ActivityCapturing with MongoDB > replacing a proposal clears omitted values without changing the original source [4.50ms]
-(pass) ActivityCapturing with MongoDB > ownership refusals preserve the capture and proposal [5.95ms]
-(pass) ActivityCapturing with MongoDB > all unknown queries are empty and actions refuse before validating details [4.51ms]
-(pass) ActivityCapturing with MongoDB > invalid costs, currencies, names, and dates leave proposals unchanged [32.03ms]
-(pass) ActivityCapturing with MongoDB > two concurrent confirmations have only one winner [9.01ms]
-(pass) ActivityCapturing with MongoDB > confirmation racing discard cannot resurrect a capture [6.85ms]
-(pass) ActivityCapturing specification coverage > discarding one draft preserves other drafts and confirmed activities [10.97ms]
+(pass) ActivityCapturing with MongoDB > principle: capture, propose, correct, confirm; survives a new concept instance [18.24ms]
+(pass) ActivityCapturing with MongoDB > manual confirmation needs no proposal and does not invent missing fields [2.24ms]
+(pass) ActivityCapturing with MongoDB > replacing a proposal clears omitted values without changing the original source [3.12ms]
+(pass) ActivityCapturing with MongoDB > ownership refusals preserve the capture and proposal [3.91ms]
+(pass) ActivityCapturing with MongoDB > all unknown queries are empty and actions refuse before validating details [2.46ms]
+(pass) ActivityCapturing with MongoDB > invalid costs, currencies, names, and dates leave proposals unchanged [15.01ms]
+(pass) ActivityCapturing with MongoDB > two concurrent confirmations have only one winner [4.03ms]
+(pass) ActivityCapturing with MongoDB > confirmation racing discard cannot resurrect a capture [3.50ms]
+(pass) ActivityCapturing specification coverage > discarding one draft preserves other drafts and confirmed activities [6.29ms]
 
 tests/concepts/Suggesting.test.ts:
-(pass) Suggesting with MongoDB > suggestions belong to groups and only their suggester can withdraw them [58.66ms]
-(pass) Suggesting specification coverage > empty queries, identity ordering, and refusals preserve group collections [30.89ms]
+(pass) Suggesting with MongoDB > suggestions belong to groups and only their suggester can withdraw them [27.15ms]
+(pass) Suggesting specification coverage > empty queries, identity ordering, and refusals preserve group collections [19.74ms]
 
 tests/concepts/GroupOrdering.test.ts:
-(pass) personal order survives a new instance and cannot replace another user's order [20.69ms]
+(pass) personal order survives a new instance and cannot replace another user's order [14.18ms]
 
 tests/concepts/MembershipTracking.test.ts:
-(pass) MembershipTracking with MongoDB > membership principle: create, invite, accept, leave, and preserve empty groups [28.76ms]
-(pass) MembershipTracking with MongoDB > concurrent invitations and accept/decline preserve membership invariants [16.12ms]
-(pass) MembershipTracking specification coverage > unknown queries return empty rows or false, and unknown actions refuse [6.04ms]
-(pass) MembershipTracking specification coverage > groups sort by name then identity and invitations sort by identity [12.22ms]
-(pass) MembershipTracking specification coverage > wrong-recipient refusals preserve an invitation; decline permits reinviting [16.85ms]
-(pass) group edits persist; rejected edits preserve the name, cover, and membership [16.02ms]
-(pass) deleting a group removes its invitations and links without changing another group [56.57ms]
+(pass) MembershipTracking with MongoDB > membership principle: create, invite, accept, leave, and preserve empty groups [23.16ms]
+(pass) MembershipTracking with MongoDB > concurrent invitations and accept/decline preserve membership invariants [18.77ms]
+(pass) MembershipTracking specification coverage > unknown queries return empty rows or false, and unknown actions refuse [5.09ms]
+(pass) MembershipTracking specification coverage > groups sort by name then identity and invitations sort by identity [14.85ms]
+(pass) MembershipTracking specification coverage > wrong-recipient refusals preserve an invitation; decline permits reinviting [16.84ms]
+(pass) group edits persist; rejected edits preserve the name, cover, and membership [20.33ms]
+(pass) deleting a group removes its invitations and links without changing another group [20.17ms]
 
 tests/concepts/Wanting.test.ts:
-(pass) Wanting with MongoDB > wanting is an independent per-person heart toggle with atomic duplicate protection [39.37ms]
-(pass) Wanting with MongoDB > simultaneous first wants for different items both persist [25.70ms]
-(pass) Wanting specification coverage > hearts can toggle repeatedly without changing other users or items [72.28ms]
+(pass) Wanting with MongoDB > wanting is an independent per-person heart toggle with atomic duplicate protection [18.60ms]
+(pass) Wanting with MongoDB > simultaneous first wants for different items both persist [20.48ms]
+(pass) Wanting specification coverage > hearts can toggle repeatedly without changing other users or items [15.96ms]
 
 tests/concepts/Experiencing.test.ts:
-(pass) Experiencing with MongoDB > experiencing remembers completion and repeat preference independently [179.60ms]
-(pass) Experiencing specification coverage > preferences can reset to UNKNOWN; invalid preferences preserve stored state [41.23ms]
-(pass) Experiencing specification coverage > experiences sort by user, stay independent, and can be recorded again after undo [37.29ms]
+(pass) Experiencing with MongoDB > experiencing remembers completion and repeat preference independently [21.19ms]
+(pass) Experiencing specification coverage > preferences can reset to UNKNOWN; invalid preferences preserve stored state [16.54ms]
+(pass) Experiencing specification coverage > experiences sort by user, stay independent, and can be recorded again after undo [23.52ms]
 
 tests/concepts/InviteLinks.test.ts:
-(pass) links store hashes, persist, permit explicit joining, and can be revoked [22.63ms]
-(pass) expired links cannot be previewed or accepted, and an inviter leaving does not revoke a valid link [11.45ms]
+(pass) links store hashes, persist, permit explicit joining, and can be revoked [18.38ms]
+(pass) expired links cannot be previewed or accepted, and an inviter leaving does not revoke a valid link [5.83ms]
+(pass) link names are automatic, editable by members, and preserve token and expiry [11.34ms]
+(pass) automatic invite names allocate distinct numbers concurrently and do not reuse revoked numbers [9.36ms]
 
- 68 pass
+ 78 pass
  0 fail
- 432 expect() calls
-Ran 68 tests across 16 files. [13.75s]
+ 537 expect() calls
+Ran 78 tests across 17 files. [15.45s]
 
 Exit code: 0
+
+Overall result: all checks and tests passed.
+Completed: 2026-10-26T18:18:51.396462+00:00

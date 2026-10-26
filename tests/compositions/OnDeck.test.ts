@@ -42,14 +42,18 @@ async function refuses(
     error: { kind: "domain", value: code },
   });
 }
-async function save(name: string, fields: Record<string, unknown> = {}) {
+async function save(
+  name: string,
+  fields: Record<string, unknown> = {},
+  user = "rebecca",
+) {
   const { capture } = await call("/captures/start", {
-    user: "rebecca",
+    user,
     source: name,
   });
   return (
     await call("/captures/confirm", {
-      user: "rebecca",
+      user,
       capture,
       name,
       ...fields,
@@ -328,7 +332,11 @@ test("Pick for Now ranks interest then novelty and applies inclusive dates and k
       until: "2026-10-10T12:00:00Z",
     })
   ).book.result;
-  expect(options.map((row: any) => row.activity)).toEqual([newest, repeat]);
+  expect(options.map((row: any) => row.activity)).toEqual([
+    newest,
+    unknown,
+    repeat,
+  ]);
   expect(
     await app.concepts.Experiencing._get({ user: "rebecca", item: newest }),
   ).toEqual([]);
@@ -451,7 +459,9 @@ test("Pick for Now returns at most ten options and does not equate unknown costs
       currency: "USD",
     })
   ).book.result;
-  expect(free.options).toHaveLength(1);
+  expect(free.options).toHaveLength(10);
+  expect(free.options[0].unknownFilters).toEqual([]);
+  expect(free.options[1].unknownFilters).toEqual(["Cost"]);
   await refuses(
     "/pick/options",
     {
@@ -478,7 +488,7 @@ test("repeat NO clears only that person's heart across groups and remains safe w
   });
   await call("/invitations/accept", { user: other, invitation });
   const second = await call("/groups/create", { user, name: "Other group" });
-  const activity = await save("Shared repeat choice");
+  const activity = await save("Shared repeat choice", {}, user);
   for (const target of [group, second.group])
     await call("/activities/add-to-group", { user, group: target, activity });
   await call("/activities/want", { user: other, group, activity });
@@ -530,4 +540,219 @@ test("repeat NO clears only that person's heart across groups and remains safe w
   expect(await app.concepts.Wanting._wants({ user, item: activity })).toEqual({
     wanted: true,
   });
+});
+
+test("sharing requires ownership or current source-group access; refusals do not create wants", async () => {
+  const owner = "sharing-owner",
+    member = "sharing-member",
+    stranger = "sharing-stranger";
+  const source = (await call("/groups/create", { user: owner, name: "Source" }))
+    .group;
+  const destination = (
+    await call("/groups/create", { user: stranger, name: "Destination" })
+  ).group;
+  const activity = await save("Private discovery", {}, owner);
+  await refuses(
+    "/activities/add-to-group",
+    { user: stranger, group: destination, activity },
+    "ACTIVITY_NOT_ACCESSIBLE",
+  );
+  expect(
+    await app.concepts.Suggesting._forGroup({ group: destination }),
+  ).toEqual([]);
+  expect(
+    await app.concepts.Wanting._wants({ user: stranger, item: activity }),
+  ).toEqual({ wanted: false });
+  await call("/activities/add-to-group", {
+    user: owner,
+    group: source,
+    activity,
+  });
+  const { invitation } = await call("/groups/invite", {
+    user: owner,
+    group: source,
+    invitee: member,
+  });
+  await call("/invitations/accept", { user: member, invitation });
+  const target = (
+    await call("/groups/create", { user: member, name: "Reshare" })
+  ).group;
+  const { suggestion } = await call("/activities/add-to-group", {
+    user: member,
+    group: target,
+    activity,
+  });
+  await call("/activities/withdraw", { user: member, suggestion });
+  await call("/activities/unwant", { user: member, group: source, activity });
+  await call("/groups/leave", { user: member, group: source });
+  await refuses(
+    "/activities/add-to-group",
+    { user: member, group: target, activity },
+    "ACTIVITY_NOT_ACCESSIBLE",
+  );
+  await refuses(
+    "/activities/complete",
+    { user: member, group: source, activity },
+    "NOT_A_MEMBER",
+  );
+  await refuses(
+    "/activities/repeat-preference",
+    { user: member, group: source, activity, preference: "YES" },
+    "NOT_A_MEMBER",
+  );
+  expect(
+    await app.concepts.Wanting._wants({ user: member, item: activity }),
+  ).toEqual({ wanted: false });
+  expect(
+    await app.concepts.Experiencing._get({ user: member, item: activity }),
+  ).toEqual([]);
+});
+
+test("members edit shared details without changing ownership, suggestions, or preferences", async () => {
+  const owner = "edit-owner",
+    member = "edit-member",
+    outsider = "edit-outsider";
+  const { group } = await call("/groups/create", {
+    user: owner,
+    name: "Editing",
+  });
+  const second = (
+    await call("/groups/create", { user: owner, name: "Also shared" })
+  ).group;
+  const { invitation } = await call("/groups/invite", {
+    user: owner,
+    group,
+    invitee: member,
+  });
+  await call("/invitations/accept", { user: member, invitation });
+  const activity = await save("Original", { description: "Clear me" }, owner);
+  const privateActivity = await save("Not suggested", {}, owner);
+  for (const target of [group, second])
+    await call("/activities/add-to-group", {
+      user: owner,
+      group: target,
+      activity,
+    });
+  const suggestions = await app.concepts.Suggesting._forGroup({ group });
+  await call("/activities/complete", { user: member, group, activity });
+  const experience = await app.concepts.Experiencing._get({
+    user: member,
+    item: activity,
+  });
+  const input = {
+    user: member,
+    group,
+    activity,
+    name: "Edited by member",
+    cost: 12,
+    currency: "USD",
+  };
+  await refuses(
+    "/activities/update",
+    { ...input, user: outsider },
+    "NOT_A_MEMBER",
+  );
+  await refuses(
+    "/activities/update",
+    { ...input, activity: privateActivity },
+    "ACTIVITY_NOT_IN_GROUP",
+  );
+  await refuses(
+    "/activities/update",
+    { ...input, name: " " },
+    "INVALID_DETAILS",
+  );
+  expect(
+    (await app.concepts.ActivityCapturing._get({ activity }))[0]?.name,
+  ).toBe("Original");
+  await call("/activities/update", input);
+  for (const target of [group, second]) {
+    const page = (
+      await call("/activities/get", { user: owner, group: target, activity })
+    ).page.activity;
+    expect(page).toMatchObject({
+      name: "Edited by member",
+      cost: 12,
+      currency: "USD",
+    });
+    expect(page.description).toBeUndefined();
+  }
+  expect(await app.concepts.ActivityCapturing._owner({ activity })).toEqual([
+    { owner },
+  ]);
+  expect(await app.concepts.Suggesting._forGroup({ group })).toEqual(
+    suggestions,
+  );
+  expect(
+    await app.concepts.Experiencing._get({ user: member, item: activity }),
+  ).toEqual(experience);
+  expect(
+    await app.concepts.Wanting._wants({ user: member, item: activity }),
+  ).toEqual({ wanted: false });
+  await call("/groups/leave", { user: member, group });
+  await refuses(
+    "/activities/update",
+    { ...input, name: "After leaving" },
+    "NOT_A_MEMBER",
+  );
+  expect(
+    (await app.concepts.ActivityCapturing._get({ activity }))[0]?.name,
+  ).toBe("Edited by member");
+});
+
+test("filters retain unknown details and exclude known mismatches", async () => {
+  const user = "uncertain-picker";
+  const { group } = await call("/groups/create", {
+    user,
+    name: "Incomplete ideas",
+  });
+  const unknown = await save("Unknown details", {}, user);
+  const match = await save(
+    "Known match",
+    {
+      category: "Chill",
+      location: "Cambridge",
+      cost: 8,
+      currency: "USD",
+      dateTime: "2026-10-25T18:00:00Z",
+    },
+    user,
+  );
+  const mismatches = [
+    { category: "Active" },
+    { location: "Boston" },
+    { cost: 11, currency: "USD" },
+    { cost: 5, currency: "EUR" },
+    { dateTime: "2026-10-26T18:00:00Z" },
+  ];
+  for (const fields of mismatches) {
+    const activity = await save("Known mismatch", fields, user);
+    await call("/activities/add-to-group", { user, group, activity });
+  }
+  for (const activity of [unknown, match])
+    await call("/activities/add-to-group", { user, group, activity });
+  const result = (
+    await call("/pick/options", {
+      user,
+      group,
+      participants: [user],
+      category: " chill ",
+      location: "Cambridge",
+      maxCost: 10,
+      currency: "USD",
+      from: "2026-10-25T00:00:00Z",
+      until: "2026-10-25T23:59:59Z",
+    })
+  ).book.result;
+  expect(result.options.map((row: any) => row.activity)).toEqual([
+    match,
+    unknown,
+  ]);
+  expect(result.options[0].unknownFilters).toEqual([]);
+  expect(result.options[1].unknownFilters).toEqual([
+    "Category",
+    "Location",
+    "Cost",
+    "Date",
+  ]);
 });

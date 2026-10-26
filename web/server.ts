@@ -21,6 +21,7 @@ const server = Bun.serve<ProxySocketData>({
     "/sharing/*": proxy,
     "/": homepage,
     "/api/*": proxy,
+    "/discovery/options": proxy,
     "/auth/people": proxy,
     "/health": proxy,
     // Only the public key is sent to the browser. The secret key stays on the backend.

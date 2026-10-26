@@ -23,7 +23,7 @@ a set of Groups with
   an optional cover String
   a members set of Users
 
-Rule: Each Group also has invite links with a token hash, link identity, expiry Number. A link is expired when the current time reaches its expiry; refusal leaves membership unchanged.
+Rule: Each Group also has invite links with a token hash, link identity, expiry Number, and name String. New links default to Invite link followed by a group-local sequence number, allocated atomically with creation and not reused after revocation. A link is expired when the current time reaches its expiry; refusal leaves membership unchanged.
 
 a set of Invitations with
   a group Group
@@ -139,8 +139,26 @@ createLink(user: User, group: Group) : returns (link: String, token: String, exp
     refuses NOT_A_MEMBER "Only members can invite someone."
   where user is a member
   then
-    create a random link, storing only its token hash and expiry seven days from now
+    create a random link, storing its automatic name, token hash, and expiry seven days from now
     returns link, token, expires
+
+renameLink(user: User, group: Group, link: String, name: String) : returns ()
+  where group does not exist
+  then
+    refuses NO_SUCH_GROUP "There is no such group."
+  where group exists and user is not a member
+  then
+    refuses NOT_A_MEMBER "Only members can rename invite links."
+  where user is a member and name is blank after trimming or longer than 80 characters after trimming
+  then
+    refuses INVALID_NAME "Use a link name between 1 and 80 characters."
+  where user is a member and name is valid and link is missing, expired, or revoked
+  then
+    refuses INVALID_LINK "This invite link is no longer active."
+  where user is a member and name is valid and link is active
+  then
+    replace only the link name with trimmed name
+    returns
 
 revokeLink(user: User, group: Group, link: String) : returns ()
   where group does not exist
@@ -182,7 +200,7 @@ _invitation(invitation: Invitation) : optional (invitation: Invitation, group: G
 
 _cover(group: Group) : one (cover: String | null)
   Answers the group's picture data URL, or null if absent or unknown.
-_links(group: Group) : many (link: String, expires: Number)
+_links(group: Group) : many (link: String, expires: Number, name: String)
   Answers unexpired link summaries, without tokens, ordered by expiry then identity.
 _link(token: String) : optional (group: Group, name: String, link: String)
   Answers minimal invitation metadata for a valid token; no row for expired or revoked tokens.

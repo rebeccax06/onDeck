@@ -17,7 +17,7 @@ import {
 } from "./api.ts";
 import { prepareGroupPicture } from "./group-picture.ts";
 import { sortableGroups } from "./sortable-groups.ts";
-import { ActivityDetails } from "./components/ActivityDetails.ts";
+import { ActivityDetails, type ActivityEdit } from "./components/ActivityDetails.ts";
 import { GroupPicker } from "./components/GroupPicker.ts";
 import { PictureEditor } from "./components/PictureEditor.ts";
 import { FormSurface } from "./components/FormSurface.ts";
@@ -29,6 +29,7 @@ import { GroupCard } from "./components/GroupCard.ts";
 import { createLiveConnection } from "./live-connection.ts";
 import { ActivityCard } from "./components/ActivityCard.ts";
 import { createLiveRefresh } from "./live-refresh.ts";
+import type { DiscoveryResult } from "../src/discovery.ts";
 import type { OnDeckHttpContract } from "../src/http-contract.ts";
 import { createHttpClient } from "@mit-sdg/sync-engine-http/client";
 import type { OnDeckWireHttp } from "../generated/wire.ts";
@@ -141,6 +142,18 @@ createApp({
     const busy = ref(false),
       message = ref(""),
       error = ref("");
+    let toastTimer: ReturnType<typeof setTimeout> | undefined;
+    function dismissMessage() {
+      clearTimeout(toastTimer);
+      toastTimer = undefined;
+      message.value = "";
+    }
+    function showSuccess(text: string) {
+      dismissMessage();
+      if (!text) return;
+      message.value = text;
+      toastTimer = setTimeout(dismissMessage, 4000);
+    }
     const tab = ref("groups"),
       groups = ref<Group[]>([]),
       invitations = ref<Invitation[]>([]);
@@ -159,7 +172,25 @@ createApp({
     let groupFormReturn = false,
       pictureVersion = 0;
     const inviteLink = ref("");
-    let inviteLinkID = "";
+    const inviteLinkID = ref("");
+    const renamingLink = ref("");
+    const inviteLinkName = ref("");
+    async function beginRenameLink(link: { link: string; name: string }) {
+      inviteLinkName.value = link.name;
+      renamingLink.value = link.link;
+      await nextTick();
+      const input = document.querySelector<HTMLInputElement>("#invite-link-name");
+      input?.focus();
+      input?.select();
+    }
+    function saveInviteLinkName() {
+      const target = { user: user.value, group: group.value, link: renamingLink.value, name: inviteLinkName.value };
+      return run(async () => {
+        await answer(client.groups["rename-link"](target));
+        renamingLink.value = "";
+        await loadInviteLinks();
+      }, "Link renamed.");
+    }
     const inviteLinks = ref<
       Array<{ link: string; expires: number }>
     >([]);
@@ -213,6 +244,21 @@ createApp({
     const options = ref<
       OnDeckWireHttp["/pick/options"]["output"]["book"]["result"]["options"]
     >([]);
+    const findingOptions = ref(false);
+    const discoveryPrompt = ref("");
+    const discovery = ref<DiscoveryResult["discovery"] | null>(null);
+    const discoveryOrder = ref<string[]>([]);
+    const discoveryMessage = computed(() => {
+      const status = discovery.value?.status;
+      return status === "ranked" ? "Ordered for your mood with Gemini. Suggestions are tentative; check the details."
+        : status === "unconfigured" ? "AI discovery isn't configured yet. Showing your group's usual options."
+        : status === "unavailable" ? (discovery.value?.failureReason === "timeout"
+          ? "Gemini took too long to respond. Showing your group’s usual options; you can try again."
+          : discovery.value?.failureReason === "invalid_response"
+          ? "Gemini couldn’t return a usable ranking. Showing your group’s usual options; you can try again."
+          : "AI discovery is unavailable right now. Showing your group’s usual options; you can try again.")
+        : "";
+    });
     const picked = ref(false);
     let submittedPick: OnDeckHttpContract["/pick/options"]["input"] | null =
       null;
@@ -234,10 +280,10 @@ createApp({
       live.invalidate();
       busy.value = true;
       error.value = "";
-      message.value = "";
+      dismissMessage();
       try {
         await task();
-        message.value = success;
+        showSuccess(success);
       } catch (reason) {
         error.value =
           reason instanceof Error
@@ -339,6 +385,9 @@ createApp({
       inviteLink.value = "";
       inviteLinks.value = [];
       joinPreview.value = null;
+      discoveryPrompt.value = "";
+      discovery.value = null;
+      discoveryOrder.value = [];
       clearTimeout(readRetry);
       readAttempts = 0;
       readWarning.value = "";
@@ -530,6 +579,7 @@ createApp({
     }
     function openMembers(id: string) {
       return run(async () => {
+        renamingLink.value = "";
         group.value = id;
         await loadGroup();
         await loadNames();
@@ -545,16 +595,16 @@ createApp({
         window.scrollTo(0, 0);
       });
     }
-    function copyInvite() {
+    function copyInvite(createNew = false) {
       return run(async () => {
-        if (!inviteLink.value) {
+        if (createNew || !inviteLink.value) {
           const result = await answer(
             client.groups["create-link"]({
               user: user.value,
               group: group.value,
             }),
           );
-          inviteLinkID = result.link;
+          inviteLinkID.value = result.link;
           inviteLink.value = inviteUrl(result.token);
           await loadInviteLinks();
         }
@@ -584,7 +634,10 @@ createApp({
             link,
           }),
         );
-        inviteLink.value = "";
+        if (inviteLinkID.value === link) {
+          inviteLink.value = "";
+          inviteLinkID.value = "";
+        }
         await loadInviteLinks();
       }, "Invitation revoked.");
     }
@@ -919,6 +972,28 @@ createApp({
         )?.focus();
       });
     }
+    function saveActivity(fields: ActivityEdit, done: () => void) {
+      if (!detail.value) return;
+      const input = { user: user.value, group: group.value, activity: detail.value.activity };
+      return run(async () => {
+        await answer(client.activities.update({ ...input, name: fields.name,
+          source: optional(fields.source), description: optional(fields.description),
+          category: optional(fields.category), location: optional(fields.location),
+          cost: fields.cost === "" ? undefined : Number(fields.cost),
+          currency: fields.cost === "" ? undefined : optional(fields.currency.trim().toUpperCase()), dateTime: optional(fields.dateTime),
+        }));
+        done();
+        const [book, page] = await Promise.all([
+          answer(client.activities.list({ user: input.user, group: input.group })),
+          answer(client.activities.get(input)),
+        ]);
+        if (user.value !== input.user || group.value !== input.group) return;
+        activities.value = book.book.activities;
+        if (detail.value?.activity === input.activity) detail.value = page.page.activity;
+        options.value = [];
+        picked.value = false;
+      }, "Activity updated.");
+    }
     async function update(
       action: "heart" | "complete" | "undo" | "withdraw" | "repeat",
       preference: "UNKNOWN" | "YES" | "NO" = "UNKNOWN",
@@ -963,23 +1038,41 @@ createApp({
     }
     function pick() {
       return run(async () => {
-        const f = filters.value;
-        const input = {
-          user: user.value,
-          group: group.value,
-          participants: [...participants.value],
-          category: optional(f.category),
-          location: optional(f.location),
-          maxCost: f.maxCost === "" ? undefined : Number(f.maxCost),
-          currency:
-            f.maxCost === "" ? undefined : f.currency.trim().toUpperCase(),
-          from: instant(f.from),
-          until: instant(f.until),
-        };
-        const result = await answer(client.pick.options(input));
-        submittedPick = input;
-        options.value = result.book.result.options;
-        picked.value = true;
+        findingOptions.value = true;
+        try {
+          const f = filters.value;
+          const input = {
+            user: user.value,
+            group: group.value,
+            participants: [...participants.value],
+            category: optional(f.category),
+            location: optional(f.location),
+            maxCost: f.maxCost === "" ? undefined : Number(f.maxCost),
+            currency:
+              f.maxCost === "" ? undefined : f.currency.trim().toUpperCase(),
+            from: instant(f.from),
+            until: instant(f.until),
+          };
+          discovery.value = null;
+          discoveryOrder.value = [];
+          if (discoveryPrompt.value.trim()) {
+            const token = await getToken();
+            const response = await fetch("/discovery/options", {
+              method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
+              body: JSON.stringify({ ...input, prompt: discoveryPrompt.value.trim() }), signal: AbortSignal.timeout(45000),
+            });
+            const payload = await answer(response.json()) as { book: { result: DiscoveryResult } };
+            if (!response.ok) throw new Error("Could not discover activities. Please retry.");
+            options.value = payload.book.result.options;
+            discovery.value = payload.book.result.discovery;
+            discoveryOrder.value = options.value.map(row => row.activity);
+          } else {
+            const result = await answer(client.pick.options(input));
+            options.value = result.book.result.options;
+          }
+          submittedPick = input;
+          picked.value = true;
+        } finally { findingOptions.value = false; }
       });
     }
     // Read-only snapshots keep background updates separate from form state and writes.
@@ -1114,9 +1207,9 @@ createApp({
         applyGroups(snapshot.groups);
         if (snapshot.links) {
           inviteLinks.value = snapshot.links;
-          if (!snapshot.links.some((link) => link.link === inviteLinkID)) {
+          if (!snapshot.links.some((link) => link.link === inviteLinkID.value)) {
             inviteLink.value = "";
-            inviteLinkID = "";
+            inviteLinkID.value = "";
           }
         }
         invitations.value = snapshot.invitations;
@@ -1137,7 +1230,8 @@ createApp({
           picked.value = false;
           submittedPick = null;
         } else if (snapshot.options !== null) {
-          options.value = snapshot.options;
+          const order = new Map(discoveryOrder.value.map((id, index) => [id, index]));
+          options.value = snapshot.options.sort((a, b) => (order.get(a.activity) ?? Infinity) - (order.get(b.activity) ?? Infinity));
           submittedPick = snapshot.pick;
           if (!snapshot.pick) picked.value = false;
         }
@@ -1215,6 +1309,7 @@ createApp({
       document.addEventListener("visibilitychange", requestRefresh);
     });
     onUnmounted(() => {
+      dismissMessage();
       connection.stop();
       live.dispose();
       clearTimeout(readRetry);
@@ -1259,6 +1354,7 @@ createApp({
       cancelGroupForm,
       chooseGroupPicture,
       removeGroupPicture,
+      saveActivity,
       closeDetails,
       deleteActivity,
       switchGroup,
@@ -1267,6 +1363,12 @@ createApp({
       manageGroup,
       inviteLink,
       inviteLinks,
+      renamingLink,
+      inviteLinkName,
+      beginRenameLink,
+      saveInviteLinkName,
+      inviteLinkID,
+      inviteExpiry: (expires: number) => new Date(expires).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }),
       joinToken,
       joinPreview,
       navigate,
@@ -1296,6 +1398,7 @@ createApp({
       signOut,
       busy,
       message,
+      dismissMessage,
       error,
       tab,
       groups,
@@ -1314,6 +1417,10 @@ createApp({
       sharedGroups,
       sharingNotice,
       participants,
+      findingOptions,
+      discoveryPrompt,
+      discovery,
+      discoveryMessage,
       filters,
       options,
       picked,
