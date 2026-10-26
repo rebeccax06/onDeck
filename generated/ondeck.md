@@ -328,7 +328,7 @@ Former "invitations for (user)" — inputs (user); bindings (invitation, group, 
 ### invite links for (group)
 
 Authored path: `OnDeck.InviteLinks`.
-- Covered by [OnDeck](../desig  n/compositions/OnDeck.md), line 27.
+- Covered by [OnDeck](../design/compositions/OnDeck.md), line 27.
 
 ```former
 Former "invite links for (group)" — inputs (group); bindings (link, expires, name); promises exactly one record — forms:

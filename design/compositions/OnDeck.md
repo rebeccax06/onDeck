@@ -159,3 +159,5 @@ groupCards(user: String) : Json
 ## Supporting material
 
 See the [API reference](../../docs/api.md), [user journey](../../user-journey.md), [design notebook](../../design-changes.md), and [recorded validation](../../docs/test-results/README.md). Tests cover filtering uncertainty, access, coordination, and the browser journey; local results do not establish deployment availability or AI accuracy. Frontend checks include CSS bundling; remove complete obsolete style rules when changing UI.
+
+Local run commands start application servers on the host with MongoDB in Compose. Build/check/test instructions must work from the lockfile and example configuration; Clerk credentials are required only for real sign-in, and Google Cloud discovery is optional.

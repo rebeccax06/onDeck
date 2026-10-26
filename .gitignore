@@ -6,3 +6,4 @@ node_modules/
 .DS_Store
 !.env.example
 demo/p2-demo.mp4
+dist/

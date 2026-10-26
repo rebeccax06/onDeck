@@ -21,12 +21,13 @@ Clerk sign-in loads its browser UI over the network. Tests use local authenticat
 
 - `bun run dev` starts MongoDB, backend (3000), and frontend (8080), with server file watching. A working `podman compose` provider is required.
 - With MongoDB already running, use `bun run dev:backend` and `bun run dev:frontend` in separate terminals.
+- `bun run build` writes the frontend bundle to ignored `dist/`; `bun run preview` starts MongoDB and the non-watching servers with production frontend settings.
 - `bun run start` runs without watching, with backend on **4000** and frontend on **8080**. Restart it after code or environment changes. The frontend proxies API requests to that backend.
 - If ports 27017, 3000, 4000, or 8080 are occupied, stop the conflicting process or configure matching server/proxy addresses. `HOST`/`PORT` control directly launched servers; `BACKEND_URL` controls the frontend proxy. The start scripts set their own addresses.
 - If Podman cannot connect, start its engine/VM and verify `podman compose version`. On a fresh macOS installation, initialize the VM before starting it.
-- `podman compose stop mongo` stops MongoDB without deleting saved data. `bun run db:reset` **deletes the local database volume**.
+- `bun run db:stop` stops MongoDB without deleting saved data. `bun run db:reset` **deletes the local database volume**.
 
-The current [Compose file](../compose.yaml) defines MongoDB only; run the app servers on the host using the commands above.
+The [Compose file](../compose.yaml) defines MongoDB only; run the app servers on the host using the commands above.
 
 ## Optional Gemini discovery
 

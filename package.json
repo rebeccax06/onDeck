@@ -30,17 +30,16 @@
     "dev": "bun run db:up && bun run --parallel dev:backend dev:frontend",
     "dev:backend": "bun --watch src/main.ts",
     "dev:frontend": "bun --watch web/server.ts",
-    "up": "podman compose up -d --build && bun scripts/check-api.ts http://127.0.0.1:8080 --wait",
-    "down": "podman compose down",
-    "logs": "podman compose logs backend frontend",
     "db:up": "podman compose up -d mongo",
     "db:shell": "podman compose exec mongo mongosh -u dev -p dev",
     "db:logs": "podman compose logs mongo",
     "db:reset": "podman compose down -v",
-    "preview": "bun run db:up && NODE_ENV=production PORT=3000 PUBLIC_ORIGIN=http://127.0.0.1:3000 bun run start",
+    "preview": "bun run db:up && NODE_ENV=production bun run start",
     "test": "bun test",
     "start:backend": "HOST=127.0.0.1 PORT=4000 bun src/main.ts",
     "start:frontend": "HOST=0.0.0.0 BACKEND_URL=http://127.0.0.1:4000 bun web/server.ts",
-    "check:styles": "bun scripts/check-styles.ts"
+    "check:styles": "bun scripts/check-styles.ts",
+    "build": "bun build web/index.html --target browser --outdir dist",
+    "db:stop": "podman compose stop mongo"
   }
 }
