@@ -14,7 +14,7 @@ OnDeck helps friends save activity ideas, share them with groups, and choose wha
 | Goals and stakeholders | [Problem framing](problem-framing.md), [application pitch](application-pitch.md) |
 | Design and specifications | [Concept overview](concepts.md), [concept specifications](design/concepts/), [types](design/types.md), [composition and reactions](design/compositions/OnDeck.md) |
 | Interface and journeys | [UI sketches](ui-sketches.md), [user journey](user-journey.md), [visual design study](https://docs.google.com/presentation/d/1EJIy1UGXG7Z7uk9DXubN1bM-2p0PRY6cemwZzJnPhvw/edit?usp=sharing) |
-| Implementation reference | [HTTP API](docs/api.md), [generated design read-back](generated/ondeck.md), [design notebook](design-changes.md) |
+| Implementation reference | [HTTP API](docs/api.md), [generated design read-back](generated/ondeck.md), [design notebook](https://github.com/rebeccax06/61040-assignments/blob/main/design-notebook.md), [design document(1-2 pager)](https://github.com/rebeccax06/61040-assignments/blob/main/design-document.md) |
 | Setup and validation | [Extended setup guide](docs/setup.md), [tests](tests/), [validation results](docs/test-results/README.md) |
 
 ## Local setup
