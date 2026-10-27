@@ -1731,9 +1731,10 @@ button.danger-button:hover {
   align-items: baseline;
   gap: 12px;
 }
-.pick-result-heading h2 {
+.pick-result-heading h3 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.3rem;
+  line-height: 1.35;
 }
 .pick-result-heading button {
   margin: 0;
@@ -1752,6 +1753,10 @@ button.danger-button:hover {
 }
 .pick-result-description {
   white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .pick-result-facts {
   display: flex;
@@ -1768,7 +1773,7 @@ button.danger-button:hover {
   padding-top: 16px;
   margin-top: 16px;
 }
-.pick-result-reason h3 {
+.pick-result-reason h4 {
   font-size: 0.85rem;
   color: var(--green);
   margin: 0 0 6px;
@@ -1801,4 +1806,57 @@ button.danger-button:hover {
 
 .invite-list .you-badge {
   margin-inline-start: 10px;
+}
+
+.pick-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.pick-results-header h2 {
+  margin: 0;
+  font-size: 1.7rem;
+  letter-spacing: -0.03em;
+}
+#pick-results-heading,
+#pick-people-heading {
+  scroll-margin-top: 24px;
+}
+.pick-summary {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  margin: 16px 0 24px;
+}
+.pick-summary li {
+  background: #edf2e9;
+  color: #40594b;
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin: 0;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.suggestions-help {
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.suggestions-help summary {
+  font-size: inherit;
+  font-weight: 500;
+}
+.suggestions-help p {
+  margin: 10px 0 0;
+}
+
+#pick-results-heading:focus,
+#pick-people-heading:focus {
+  outline: 2px solid #75ad91;
+  outline-offset: 5px;
+  border-radius: 3px;
 }

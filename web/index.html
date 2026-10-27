@@ -126,17 +126,18 @@
           <section v-if="tab==='pick'">
             <h1>Pick for Now</h1>
             <p v-if="!group">Choose a group first.</p>
-            <form-surface v-else @submit.prevent="pick" class="pick-form" :aria-busy="findingOptions">
+            <form-surface v-else-if="!picked || adjustingPick" @submit.prevent="pick" class="pick-form" :aria-busy="findingOptions">
               <section class="form-section people-section" aria-labelledby="pick-people-heading">
-                <div class="pick-section-heading"><h2 id="pick-people-heading">People</h2><span class="selection-count" role="status">{{ participants.length }} selected</span></div>
+                <div class="pick-section-heading"><h2 id="pick-people-heading" tabindex="-1">People</h2><span class="selection-count" role="status">{{ participants.length }} selected</span></div>
+                <p v-if="!participants.length" class="hint">Select at least one person to find options.</p>
                 <div class="people-choices"><label v-for="member in members" :key="member" class="choice person-choice"><input type="checkbox" v-model="participants" :value="member" /><span class="avatar" aria-hidden="true">{{ person(member).slice(0,1).toUpperCase() }}</span><span>{{ person(member) }}</span><span v-if="member===user" class="you-badge">You</span></label></div>
               </section>
               <section class="form-section">
-                <h2>Discover something for your mood</h2>
                 <label>What are you in the mood for? <span class="optional">Optional</span>
                   <textarea v-model="discoveryPrompt" maxlength="500" placeholder="We want to do something chill"></textarea>
                 </label>
               </section>
+              <details class="suggestions-help"><summary>How suggestions work</summary><p>We start with the selected people’s likes and repeat preferences. An optional mood prompt asks Gemini to reorder saved ideas and explain its suggestions. Missing details stay unknown.</p><p>Your prompt, activity details, and anonymous preference signals are sent to Google Cloud only when you choose Find options. Suggestions can be wrong; check important details.</p></details>
               <details class="form-section pick-filters">
                 <summary aria-label="Filters"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18l-7 8v7l-4 2v-9L3 4Z"/></svg><span>Filters</span><span class="optional">Optional</span><span class="filter-disclosure-label" aria-hidden="true">Adjust</span></summary>
                 <div class="row">
@@ -176,22 +177,26 @@
               </div>
               <template #actions><button type="button" @click="navigate('deck')">Cancel</button><button class="primary" :disabled="busy || !participants.length">{{ findingOptions ? (discoveryPrompt.trim() ? 'Finding ideas…' : 'Finding options…') : 'Find options →' }}</button></template>
             </form-surface>
+            <section v-if="picked && !adjustingPick && !findingOptions" class="pick-results-section" aria-labelledby="pick-results-heading">
+              <div class="pick-results-header"><h2 id="pick-results-heading" tabindex="-1">Your options <span class="count">{{ options.length }}</span></h2><button type="button" class="text-button" @click="adjustPick">Adjust</button></div>
+              <ul class="pick-summary" aria-label="Submitted preferences"><li v-for="item in pickSummary" :key="item">{{ item }}</li></ul>
             <p v-if="picked && !findingOptions && discoveryMessage" class="hint" role="status">{{ discoveryMessage }}</p>
             <p v-if="picked && !findingOptions && !options.length">
               No activities match. Try fewer filters or add an idea.
             </p>
             <ol v-show="!findingOptions" class="pick-results" aria-label="Suggested activities">
               <li v-for="(a, index) in options" :key="a.activity" class="pick-result-card">
-                <div class="pick-result-heading"><span class="pick-rank" :aria-label="'Rank ' + (index+1)">{{ index+1 }}</span><h2><button class="link" @click="open(a)">{{ a.name }}</button></h2></div>
-                <p class="pick-result-interest">{{ a.wantedCount }} interested · {{ a.completedCount }} have been · {{ a.repeatYesCount }} would repeat</p>
+                <div class="pick-result-heading"><span class="pick-rank" :aria-label="'Rank ' + (index+1)">{{ index+1 }}</span><h3><button class="link" @click="open(a)">{{ a.name }}</button></h3></div>
+                <p class="pick-result-interest"><strong>{{ a.wantedCount }} of {{ a.members.length }} interested</strong><span v-if="a.repeatYesCount"> · {{ a.repeatYesCount }} would repeat</span></p>
                 <p v-if="a.description" class="pick-result-description">{{ a.description }}</p>
                 <ul class="pick-result-facts" aria-label="Activity details">
-                  <li>{{ cost(a) }}</li><li v-if="a.location">{{ a.location }}</li><li v-if="a.category">{{ a.category }}</li><li v-if="a.dateTime">{{ new Date(a.dateTime).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) }}</li>
+                  <li>{{ cost(a) }}</li><li v-if="a.completedCount">{{ a.completedCount }} have been</li><li v-if="a.location">{{ a.location }}</li><li v-if="a.category">{{ a.category }}</li><li v-if="a.dateTime">{{ new Date(a.dateTime).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) }}</li>
                 </ul>
-                <div v-if="discovery?.reasons[a.activity]" class="pick-result-reason"><h3>Why it might fit</h3><p>{{ discovery.reasons[a.activity] }}</p></div>
+                <div v-if="discovery?.reasons[a.activity]" class="pick-result-reason"><h4>Why it might fit</h4><p>{{ discovery.reasons[a.activity] }}</p></div>
                 <p v-if="a.unknownFilters.length" class="pick-result-unknown">Check before deciding: {{ a.unknownFilters.join(', ') }} not provided.</p>
               </li>
             </ol>
+            </section>
           </section>
             </template>
             <activity-details :key="detail?.activity" :busy="busy" @save="saveActivity" v-if="detail" :activity="detail" :user="user" :person="person" :group-name="currentGroup?.name || 'On Deck'" :source-url="safeLink(detail.source)" :cost-label="cost(detail)" @back="closeDetails" @action="update" @repeat="update('repeat',$event)" @delete="deleteActivity(detail)"></activity-details>

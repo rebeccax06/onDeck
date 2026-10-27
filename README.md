@@ -8,14 +8,18 @@ OnDeck helps friends save activity ideas, share them with groups, and choose wha
 
 ## Project materials
 
-| Material | Links |
-| --- | --- |
-| Earlier demos | [Beta](https://youtu.be/lOiKlo7TzRc), [Alpha](https://drive.google.com/file/d/1MzA0Gtd-2lBIoQ_Ru9OA5ZyYlzV7R07Q/view?usp=sharing) |
-| Goals and stakeholders | [Problem framing](problem-framing.md), [application pitch](application-pitch.md) |
-| Design and specifications | [Concept overview](concepts.md), [concept specifications](design/concepts/), [types](design/types.md), [composition and reactions](design/compositions/OnDeck.md) |
-| Interface and journeys | [UI sketches](ui-sketches.md), [user journey](user-journey.md), [visual design study](https://docs.google.com/presentation/d/1EJIy1UGXG7Z7uk9DXubN1bM-2p0PRY6cemwZzJnPhvw/edit?usp=sharing) |
-| Implementation reference | [HTTP API](docs/api.md), [generated design read-back](generated/ondeck.md), [design notebook](https://github.com/rebeccax06/61040-assignments/blob/main/design-notebook.md), [design document(1-2 pager)](https://github.com/rebeccax06/61040-assignments/blob/main/design-document.md) |
-| Setup and validation | [Extended setup guide](docs/setup.md), [tests](tests/), [validation results](docs/test-results/README.md) |
+
+| Material                  | Links                                                                                                                                                                                                                                                                                    |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Earlier demos             | [Beta](https://youtu.be/lOiKlo7TzRc), [Alpha](https://drive.google.com/file/d/1MzA0Gtd-2lBIoQ_Ru9OA5ZyYlzV7R07Q/view?usp=sharing)                                                                                                                                                        |
+| Goals and stakeholders    | [Problem framing](problem-framing.md), [application pitch](application-pitch.md)                                                                                                                                                                                                         |
+| Design and specifications | [Concept overview](concepts.md), [concept specifications](design/concepts/), [types](design/types.md), [composition and reactions](design/compositions/OnDeck.md)                                                                                                                        |
+| Interface and journeys    | [UI sketches](ui-sketches.md), [user journey](user-journey.md), [visual design study](https://docs.google.com/presentation/d/1EJIy1UGXG7Z7uk9DXubN1bM-2p0PRY6cemwZzJnPhvw/edit?usp=sharing)                                                                                              |
+| Implementation reference  | [HTTP API](docs/api.md), [generated design read-back](generated/ondeck.md), [design notebook](https://github.com/rebeccax06/61040-assignments/blob/main/design-notebook.md), [design document(1-2 pager)](https://github.com/rebeccax06/61040-assignments/blob/main/design-document.md) |
+| Setup and validation      | [Extended setup guide](docs/setup.md), [tests](tests/), [validation results](docs/test-results/README.md)                                                                                                                                                                                |
+
+
+
 
 ## Local setup
 
@@ -36,9 +40,9 @@ bun run dev
 
 This starts MongoDB in Podman and the backend/frontend in watch mode:
 
-- **App:** http://127.0.0.1:8080 — sign up or sign in with Clerk.
-- **API:** http://127.0.0.1:3000/api — authenticated POST/JSON endpoints.
-- **Health:** http://127.0.0.1:3000/health — checks database connectivity.
+- **App:** [http://127.0.0.1:8080](http://127.0.0.1:8080) — sign up or sign in with Clerk.
+- **API:** [http://127.0.0.1:3000/api](http://127.0.0.1:3000/api) — authenticated POST/JSON endpoints.
+- **Health:** [http://127.0.0.1:3000/health](http://127.0.0.1:3000/health) — checks database connectivity.
 
 `bun run preview` starts the database and non-watching host servers with production frontend settings (app on 8080, backend on 4000). Refresh the browser after frontend changes; save unfinished drafts first. Stop the app with Ctrl+C; stop the database with `bun run db:stop` (data is retained). See [troubleshooting and alternate commands](docs/setup.md#running-and-troubleshooting).
 

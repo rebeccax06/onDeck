@@ -163,3 +163,7 @@ See the [API reference](../../docs/api.md), [user journey](../../user-journey.md
 Local run commands start application servers on the host with MongoDB in Compose. Build/check/test instructions must work from the lockfile and example configuration; Clerk credentials are required only for real sign-in, and Google Cloud discovery is optional.
 
 For hosts with environment variables only, GOOGLE_SERVICE_ACCOUNT_JSON can supply service-account credentials directly to the server SDK. It takes precedence over file-based ADC when set; malformed credentials disable discovery with a safe diagnostic instead of preventing the app from starting.
+
+After a successful pick, replace the form with results, focus/scroll to Your options, and show a compact summary of the submitted people, mood, and applied filters. Adjust restores the preserved form and focuses its people heading; failed requests leave edits available. Cards emphasize title and shared interest, followed by known facts, tentative explanation, and details to check. Longer discovery guidance lives under How suggestions work. Background refresh never changes focus.
+
+The How suggestions work disclosure uses the available form width.

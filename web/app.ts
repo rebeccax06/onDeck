@@ -259,6 +259,31 @@ createApp({
           : "AI discovery is unavailable right now. Showing your group’s usual options; you can try again.")
         : "";
     });
+    const adjustingPick = ref(false);
+    const pickContext = ref<{
+      people: string[]; mood: string;
+      filters: OnDeckWireHttp["/pick/options"]["output"]["book"]["result"]["filters"];
+    } | null>(null);
+    const pickSummary = computed(() => {
+      const context = pickContext.value;
+      if (!context) return [];
+      const f = context.filters;
+      const labels = [context.people.map(person).join(", ")];
+      if (context.mood) labels.push(`Mood: ${context.mood}`);
+      if (f.maxCost != null) labels.push(`Up to ${f.maxCost} ${f.currency}`);
+      if (f.category) labels.push(`Category: ${f.category}`);
+      if (f.location) labels.push(`Location: ${f.location}`);
+      if (f.from) labels.push(`From ${new Date(f.from).toLocaleString()}`);
+      if (f.until) labels.push(`Until ${new Date(f.until).toLocaleString()}`);
+      return labels;
+    });
+    async function adjustPick() {
+      adjustingPick.value = true;
+      await nextTick();
+      const heading = document.querySelector<HTMLElement>("#pick-people-heading");
+      heading?.focus({ preventScroll: true });
+      heading?.scrollIntoView({ block: "start" });
+    }
     const picked = ref(false);
     let submittedPick: OnDeckHttpContract["/pick/options"]["input"] | null =
       null;
@@ -386,6 +411,8 @@ createApp({
       inviteLinks.value = [];
       joinPreview.value = null;
       discoveryPrompt.value = "";
+      pickContext.value = null;
+      adjustingPick.value = false;
       discovery.value = null;
       discoveryOrder.value = [];
       clearTimeout(readRetry);
@@ -1053,6 +1080,9 @@ createApp({
             from: instant(f.from),
             until: instant(f.until),
           };
+          const mood = discoveryPrompt.value.trim();
+          let appliedFilters: OnDeckWireHttp["/pick/options"]["output"]["book"]["result"]["filters"] = {};
+          let selectedPeople = [...input.participants];
           discovery.value = null;
           discoveryOrder.value = [];
           if (discoveryPrompt.value.trim()) {
@@ -1064,15 +1094,25 @@ createApp({
             const payload = await answer(response.json()) as { book: { result: DiscoveryResult } };
             if (!response.ok) throw new Error("Could not discover activities. Please retry.");
             options.value = payload.book.result.options;
+            appliedFilters = payload.book.result.filters;
+            selectedPeople = [...payload.book.result.participants];
             discovery.value = payload.book.result.discovery;
             discoveryOrder.value = options.value.map(row => row.activity);
           } else {
             const result = await answer(client.pick.options(input));
             options.value = result.book.result.options;
+            appliedFilters = result.book.result.filters;
+            selectedPeople = [...result.book.result.participants];
           }
           submittedPick = input;
+          pickContext.value = { people: selectedPeople, mood, filters: appliedFilters };
           picked.value = true;
+          adjustingPick.value = false;
         } finally { findingOptions.value = false; }
+        await nextTick();
+        const heading = document.querySelector<HTMLElement>("#pick-results-heading");
+        heading?.focus({ preventScroll: true });
+        heading?.scrollIntoView({ block: "start" });
       });
     }
     // Read-only snapshots keep background updates separate from form state and writes.
@@ -1233,6 +1273,9 @@ createApp({
           const order = new Map(discoveryOrder.value.map((id, index) => [id, index]));
           options.value = snapshot.options.sort((a, b) => (order.get(a.activity) ?? Infinity) - (order.get(b.activity) ?? Infinity));
           submittedPick = snapshot.pick;
+          if (pickContext.value && snapshot.pick) {
+            pickContext.value = { ...pickContext.value, people: [...snapshot.pick.participants] };
+          }
           if (!snapshot.pick) picked.value = false;
         }
         if (snapshot.names) {
@@ -1418,6 +1461,9 @@ createApp({
       sharingNotice,
       participants,
       findingOptions,
+      adjustingPick,
+      pickSummary,
+      adjustPick,
       discoveryPrompt,
       discovery,
       discoveryMessage,

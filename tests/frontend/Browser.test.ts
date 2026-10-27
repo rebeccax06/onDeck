@@ -811,6 +811,13 @@ browserTest(
       releaseDiscovery!();
       await bob.until("!document.querySelector('.discovery-loading') && document.querySelector('main')?.textContent.includes('Could suit a relaxed mood.') && !document.querySelector('fieldset').disabled");
       expect(discoveryCalls).toBe(1);
+      expect(await bob.evaluate("document.activeElement.id==='pick-results-heading' && !document.querySelector('.pick-form') && document.querySelector('.pick-summary').textContent.includes('Bob') && document.querySelector('.pick-summary').textContent.includes('Something chill')")).toBe(true);
+      await bob.click("Adjust");
+      await bob.until("document.activeElement.id==='pick-people-heading' && !!document.querySelector('.pick-form')");
+      expect(await bob.evaluate("document.querySelector('textarea[placeholder=\"We want to do something chill\"]').value==='Something chill' && !document.querySelector('.pick-results-section')")).toBe(true);
+      await bob.click("Find options →");
+      await bob.until("document.activeElement.id==='pick-results-heading' && !!document.querySelector('.pick-result-card') && !document.querySelector('fieldset').disabled");
+      expect(discoveryCalls).toBe(2);
       expect(await bob.evaluate("!!document.querySelector('.pick-result-card .pick-result-reason') && !!document.querySelector('.pick-result-interest')")).toBe(true);
       await bob.evaluate("document.querySelector('.pick-result-card').scrollIntoView({block:'center'})");
       if (process.env.ONDECK_SCREENSHOT) {
@@ -1059,7 +1066,7 @@ browserTest(
       await alice.until(
         "document.querySelectorAll('.activity-card').length===0 && !document.querySelector('fieldset').disabled",
       );
-      expect(discoveryCalls).toBe(1);
+      expect(discoveryCalls).toBe(2);
       console.info("Browser: recover partial sharing after a selected group disappears");
       const call = async (path: string, input: Record<string, unknown>) => {
         const response = await fetch(new URL(`/api${path}`, backend.url), {
