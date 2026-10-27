@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createDiscoveryHandler, geminiRanker, rankDiscovery } from "../../src/discovery.ts";
+import { createDiscoveryHandler, geminiRanker, rankDiscovery, serviceAccountCredentials } from "../../src/discovery.ts";
 
 const result: any = { participants: ["member"], filters: {}, options: [
   { activity: "a", name: "Cafe", source: "private-url", description: "Quiet table", members: [{ user: "private-user" }], unknownFilters: ["Cost"] },
@@ -107,4 +107,26 @@ test("fallback diagnostics distinguish timeout, invalid output, and provider err
   expect(events.map(event => event.reason)).toEqual(["timeout", "invalid_response", "provider_error"]);
   expect(JSON.stringify(events)).not.toContain("secret");
   expect(JSON.stringify(events)).not.toContain("private");
+});
+
+
+test("environment-only service account credentials stay server-side and malformed values are nonfatal", async () => {
+  const key = "-----BEGIN PRIVATE KEY-----\nTEST-ONLY-SECRET\n-----END PRIVATE KEY-----\n";
+  const raw = JSON.stringify({ type: "service_account", client_email: "test@example.iam.gserviceaccount.com", private_key: key, token_uri: "https://untrusted.example/ignored" });
+  expect(serviceAccountCredentials()).toBeUndefined();
+  expect(serviceAccountCredentials(raw)).toEqual({ client_email: "test@example.iam.gserviceaccount.com", private_key: key });
+  const escaped = JSON.stringify({ type: "service_account", client_email: "test@example.iam.gserviceaccount.com", private_key: key.replaceAll("\n", "\\n") });
+  expect(serviceAccountCredentials(escaped)?.private_key).toBe(key);
+  for (const invalid of ["secret-invalid-json", "null", "[]", JSON.stringify({ type: "authorized_user", client_email: "test@example.com", private_key: key }), JSON.stringify({ type: "service_account", client_email: "test@example.com", private_key: "not-a-key" })]) {
+    expect(() => serviceAccountCredentials(invalid)).toThrow("Invalid GOOGLE_SERVICE_ACCOUNT_JSON");
+    expect(geminiRanker({ GOOGLE_CLOUD_PROJECT: "test-project", GOOGLE_SERVICE_ACCOUNT_JSON: invalid })).toBeNull();
+  }
+  let request: any;
+  const ranker = geminiRanker({ GOOGLE_CLOUD_PROJECT: "test-project", GOOGLE_SERVICE_ACCOUNT_JSON: raw }, async value => {
+    request = value;
+    return { text: JSON.stringify({ ranking: [{ activity: "a", reason: "Could fit" }] }) };
+  });
+  expect((await rankDiscovery(result, "chill", ranker)).discovery.status).toBe("ranked");
+  expect(JSON.stringify(request)).not.toContain("TEST-ONLY-SECRET");
+  expect(JSON.stringify(request)).not.toContain("private_key");
 });

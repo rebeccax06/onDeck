@@ -41,19 +41,41 @@ export type DiscoveryResult = PickResult & {
   };
 };
 
+/** Parse only the server-side credential fields used by Google authentication. */
+export function serviceAccountCredentials(raw?: string) {
+  if (!raw?.trim()) return undefined;
+  let value: unknown;
+  try { value = JSON.parse(raw); } catch { throw new Error("Invalid GOOGLE_SERVICE_ACCOUNT_JSON"); }
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid GOOGLE_SERVICE_ACCOUNT_JSON");
+  const fields = value as Record<string, unknown>;
+  if (fields.type !== "service_account" || typeof fields.client_email !== "string" || !fields.client_email.includes("@") || typeof fields.private_key !== "string") {
+    throw new Error("Invalid GOOGLE_SERVICE_ACCOUNT_JSON");
+  }
+  const private_key = fields.private_key.replace(/\\n/g, "\n");
+  if (!private_key.startsWith("-----BEGIN PRIVATE KEY-----") || !private_key.trimEnd().endsWith("-----END PRIVATE KEY-----")) throw new Error("Invalid GOOGLE_SERVICE_ACCOUNT_JSON");
+  return { client_email: fields.client_email, private_key };
+}
+
 export function geminiRanker(
   env = process.env,
   generate?: (request: object) => Promise<{ text?: string }>,
 ): DiscoveryRanker | null {
   const project = env.GOOGLE_CLOUD_PROJECT?.trim();
   if (!project) return null;
-  // ADC is resolved by the SDK on the server; no keys or tokens enter the client bundle.
+  let credentials: ReturnType<typeof serviceAccountCredentials>;
+  try { credentials = serviceAccountCredentials(env.GOOGLE_SERVICE_ACCOUNT_JSON); }
+  catch {
+    console.warn("Discovery configuration invalid: GOOGLE_SERVICE_ACCOUNT_JSON must contain service-account credentials.");
+    return null;
+  }
+  // Credentials stay on the server; unset JSON preserves the SDK's ADC behavior.
   const client = generate
     ? null
     : new GoogleGenAI({
         vertexai: true,
         project,
         location: env.GOOGLE_CLOUD_LOCATION || "global",
+        ...(credentials ? { googleAuthOptions: { credentials } } : {}),
       });
   return async (prompt, candidates) => {
     const model = env.GOOGLE_GENAI_MODEL || "gemini-3-flash-preview";

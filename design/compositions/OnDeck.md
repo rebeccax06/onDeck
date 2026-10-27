@@ -72,7 +72,7 @@ The host supplies identity, limits prompts to 500 characters and bodies to 8 KiB
 
 Balance mood with shared wants and repeat preferences. Unmarked wants, missing preferences, completion alone, and UNKNOWN are neutral; repeat NO is negative rather than a veto. Vague details should increase uncertainty, not erase explicit shared interest. Explanations remain tentative and never fill saved fields.
 
-Missing configuration, blocked/invalid responses, provider errors, and timeouts fall back to normal options with a clear status. Settings/credentials stay server-side; gemini-3-flash-preview is configurable. Use low thinking effort for Gemini 3, a 28-second SDK timeout, 30-second ranking deadline, and 45-second browser deadline. Log only failure classification, numeric HTTP status, duration, and candidate count; never prompt/content/credentials or raw provider messages.
+Missing configuration, blocked/invalid responses, provider errors, and timeouts fall back to normal options with a clear status. Credentials stay server-side ([setup](../../docs/setup.md#optional-gemini-discovery)); gemini-3-flash-preview is configurable. Use low thinking effort for Gemini 3, a 28-second SDK timeout, 30-second ranking deadline, and 45-second browser deadline. Log only failure classification, numeric HTTP status, duration, and candidate count; never prompt/content/credentials or raw provider messages.
 
 ## Feedback and live views
 
@@ -161,3 +161,5 @@ groupCards(user: String) : Json
 See the [API reference](../../docs/api.md), [user journey](../../user-journey.md), [design notebook](../../design-changes.md), and [recorded validation](../../docs/test-results/README.md). Tests cover filtering uncertainty, access, coordination, and the browser journey; local results do not establish deployment availability or AI accuracy. Frontend checks include CSS bundling; remove complete obsolete style rules when changing UI.
 
 Local run commands start application servers on the host with MongoDB in Compose. Build/check/test instructions must work from the lockfile and example configuration; Clerk credentials are required only for real sign-in, and Google Cloud discovery is optional.
+
+For hosts with environment variables only, GOOGLE_SERVICE_ACCOUNT_JSON can supply service-account credentials directly to the server SDK. It takes precedence over file-based ADC when set; malformed credentials disable discovery with a safe diagnostic instead of preventing the app from starting.
